@@ -1,5 +1,7 @@
 TARGET=musl
 
+.PHONY: test
+
 default: build
 
 release:
@@ -11,6 +13,9 @@ debug:
 
 build:
 	cargo build --release
+
+test:
+	time -l target/release/blockfast -b test/blocks
 
 install:
 	cp ./target/x86_64-unknown-linux-$(TARGET)/release/parser /usr/bin/parser

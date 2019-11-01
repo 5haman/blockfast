@@ -6,8 +6,9 @@ use blockchain::address::Address;
 use blockchain::hash160::Hash160;
 use blockchain::script::HighLevel;
 use blockchain::transaction::{Transaction, TransactionInput, TransactionOutput};
-use visitors::disjoint::DisjointSet;
-use visitors::Visitor;
+use reader::disjoint::DisjointSet;
+use reader::Visitor;
+
 
 pub struct Clusterizer {
     clusters: DisjointSet<Address>,
@@ -29,11 +30,8 @@ impl<'a> Visitor<'a> for Clusterizer {
         }
     }
 
-    //fn visit_block_begin(&mut self, _block: Block<'a>, _height: u64) {}
-
     fn visit_transaction_begin(
         &mut self,
-        //_block_item: &mut Self::BlockItem,
     ) -> Self::TransactionItem {
         HashSet::new()
     }
@@ -41,7 +39,6 @@ impl<'a> Visitor<'a> for Clusterizer {
     fn visit_transaction_input(
         &mut self,
         _txin: TransactionInput<'a>,
-        //_block_item: &mut Self::BlockItem,
         tx_item: &mut Self::TransactionItem,
         output_item: Option<Self::OutputItem>,
     ) {
@@ -62,7 +59,6 @@ impl<'a> Visitor<'a> for Clusterizer {
     fn visit_transaction_output(
         &mut self,
         txout: TransactionOutput<'a>,
-        //_block_item: &mut (),
         _transaction_item: &mut (Self::TransactionItem),
     ) -> Option<Self::OutputItem> {
         match txout.script.to_highlevel() {
@@ -90,7 +86,6 @@ impl<'a> Visitor<'a> for Clusterizer {
     fn visit_transaction_end(
         &mut self,
         _tx: Transaction<'a>,
-        //_block_item: &mut Self::BlockItem,
         tx_item: Self::TransactionItem,
     ) {
         if tx_item.len() > 0 {
@@ -106,13 +101,10 @@ impl<'a> Visitor<'a> for Clusterizer {
     }
 
     fn done(&mut self) {
-        //self.clusters.finalize();
-
         for (address, tag) in &self.clusters.map {
             self.writer
                 .write(&format!("{} {}\n", self.clusters.parent[*tag], address).as_bytes())
                 .expect("Unable to write nodes file!");
-            //println!("{} {}", self.clusters.parent[*tag], address);
         }
     }
 }

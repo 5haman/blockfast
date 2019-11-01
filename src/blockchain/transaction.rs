@@ -4,12 +4,11 @@ use std::collections::hash_map::Entry as HashEntry;
 use std::collections::HashMap;
 use vec_map::VecMap;
 
-use blockchain::address::Address;
 use blockchain::buffer::{read_slice, read_u32, read_u64, read_u8, read_var_int};
-use blockchain::error::{ParseError, ParseResult, Result};
+use types::{ParseError, ParseResult, Result};
 use blockchain::hash::Hash;
 use blockchain::script::Script;
-//use visitors::Visitor;
+use reader::Visitor;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Transaction<'a> {
@@ -19,6 +18,8 @@ pub struct Transaction<'a> {
     pub txouts_count: u64,
     pub lock_time: u32,
     pub slice: &'a [u8],
+    pub timestamp: u32,
+    pub height: u64,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -38,18 +39,11 @@ pub struct TransactionOutput<'a> {
 }
 
 impl<'a> Transaction<'a> {
-    pub fn read_and_walk(
-        //<V: Visitor<'a>>(
+    pub fn read(
         slice: &mut &'a [u8],
-        //visitor: &mut V,
         timestamp: u32,
-        height: u64,
-        //block_item: &mut V::BlockItem,
-        //output_items: &mut HashMap<Hash, VecMap<Vec<Address>>>,
+        height: u64
     ) -> ParseResult<Transaction<'a>> {
-        // Visit the raw transaction before parsing
-        //let mut transaction_item = visitor.visit_transaction_begin();
-
         let mut tx_hash = [0u8; 32];
         let mut sha256_hasher1 = Sha256::new();
         let mut sha256_hasher2 = sha256_hasher1;
@@ -58,11 +52,12 @@ impl<'a> Transaction<'a> {
         let mut init_slice = *slice;
 
         sha256_hasher1.input(&slice[..4]);
-        let version = read_u32(slice)?;
 
+        let version = read_u32(slice)?;
         let marker = slice[0];
         let txins_count: u64;
         let mut slice_inputs_and_outputs = *slice;
+
         if marker == 0x00 {
             // Consume marker
             *slice = &slice[1..];
@@ -79,17 +74,7 @@ impl<'a> Transaction<'a> {
 
         // Read the inputs
         for _ in 0..txins_count {
-            let i = TransactionInput::read(slice, timestamp, height)?;
-            /*
-            let mut output_item = None;
-            if let HashEntry::Occupied(mut occupied) = output_items.entry(*i.prev_hash) {
-                output_item = occupied.get_mut().remove(i.prev_index as usize);
-                if occupied.get().len() == 0 {
-                    occupied.remove();
-                }
-            }
-            */
-            //visitor.visit_transaction_input(i, &mut transaction_item, output_item);
+            let _ = TransactionInput::read(slice, timestamp, height)?;
         }
 
         // Read the outputs
@@ -97,15 +82,7 @@ impl<'a> Transaction<'a> {
 
         //let mut cur_output_items = VecMap::with_capacity(txouts_count as usize);
         for n in 0..txouts_count {
-            let o = TransactionOutput::read(slice, timestamp, height)?;
-            /*
-            let output_item =
-                visitor.visit_transaction_output(o, &mut transaction_item);
-
-            if let Some(output_item) = output_item {
-                cur_output_items.insert(n as usize, output_item);
-            }
-            */
+            let _ = TransactionOutput::read(slice, timestamp, height)?;
         }
 
         // Hash the transaction data before the witnesses
@@ -137,17 +114,63 @@ impl<'a> Transaction<'a> {
             txouts_count,
             lock_time,
             slice: read_slice(&mut init_slice, len)?,
+            timestamp: timestamp,
+            height: height,
         };
 
-        /*
+        Ok(tx)
+    }
+
+    pub fn walk<V: Visitor<'a>>(
+        &self,
+        slice: &mut &'a [u8],
+        visitor: &mut V,
+        output_items: &mut HashMap<Hash, VecMap<V::OutputItem>>,
+    ) {
+        // Visit the raw transaction before parsing
+        let mut transaction_item = visitor.visit_transaction_begin();
+
+        // Read the inputs
+        for _ in 0..self.txins_count {
+            match TransactionInput::read(slice, self.timestamp, self.height) {
+                Ok(input) => {
+                    let mut output_item = None;
+                    if let HashEntry::Occupied(mut occupied) = output_items.entry(*input.prev_hash) {
+                        output_item = occupied.get_mut().remove(input.prev_index as usize);
+                        if occupied.get().len() == 0 {
+                            occupied.remove();
+                        }
+                    }
+
+                    visitor.visit_transaction_input(input, &mut transaction_item, output_item);
+                }
+                Err(_) => {}
+            }
+        }
+
+        let mut cur_output_items = VecMap::with_capacity(self.txouts_count as usize);
+        for n in 0..self.txouts_count {
+
+            match TransactionOutput::read(slice, self.timestamp, self.height) {
+                Ok(output) => {
+                    let output_item =
+                        visitor.visit_transaction_output(output, &mut transaction_item);
+
+                    if let Some(output_item) = output_item {
+                        cur_output_items.insert(n as usize, output_item);
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+
         if cur_output_items.len() > 0 {
             let len = cur_output_items.len();
             cur_output_items.reserve_len_exact(len);
-            output_items.insert(*Hash::from_slice(&tx_hash), cur_output_items);
+            output_items.insert(self.txid, cur_output_items);
         }
-        */
-        //visitor.visit_transaction_end(tx, transaction_item);
-        Ok(tx)
+
+        visitor.visit_transaction_end(*self, transaction_item);
     }
 }
 

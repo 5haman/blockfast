@@ -1,5 +1,7 @@
 use std::{io, result};
 
+use blockchain::transaction::Transaction;
+
 #[derive(Debug)]
 pub struct EofError;
 
@@ -9,6 +11,12 @@ pub type Result<T> = result::Result<T, EofError>;
 pub enum ParseError {
     Eof,
     Invalid,
+}
+
+pub enum ThreadResult<'a> {
+    OnTransaction(Transaction<'a>),
+    OnComplete(String),
+    OnError(ParseError),
 }
 
 pub type ParseResult<T> = result::Result<T, ParseError>;

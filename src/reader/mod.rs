@@ -1,5 +1,8 @@
 pub mod clusterizer;
 pub mod disjoint;
+pub mod reader;
+pub mod consumer;
+pub mod chain;
 
 use blockchain::transaction::{Transaction, TransactionInput, TransactionOutput};
 

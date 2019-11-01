@@ -3,7 +3,7 @@ use bitcoin_bech32::WitnessProgram;
 
 use blockchain::bytecode::Bytecode;
 use blockchain::bytecode::Bytecode::*;
-use blockchain::error::{ParseError, ParseResult};
+use types::{ParseError, ParseResult};
 
 #[derive(PartialEq, Clone)]
 pub enum HighLevel<'a> {

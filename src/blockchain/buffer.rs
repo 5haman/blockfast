@@ -1,6 +1,6 @@
 use byteorder::{ByteOrder, LittleEndian};
 
-use blockchain::error::{EofError, Result};
+use types::{EofError, Result};
 
 pub fn read_slice<'a>(slice: &mut &'a [u8], len: usize) -> Result<&'a [u8]> {
     if slice.len() < len {

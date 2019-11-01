@@ -1,9 +1,9 @@
 use blockchain::buffer::{read_slice, read_u32, read_var_int};
-use blockchain::error::{ParseError, ParseResult, Result};
+use types::{ParseError, ParseResult};
 use blockchain::header::BlockHeader;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
-pub struct Block<'a>(&'a [u8]);
+pub struct Block<'a>(pub &'a [u8]);
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Transactions<'a> {
@@ -42,14 +42,17 @@ impl<'a> Block<'a> {
         BlockHeader::new(read_array!(&mut slice, 80).unwrap())
     }
 
-    pub fn transactions(&self) -> Result<Transactions<'a>> {
+    pub fn transactions(&self) -> Transactions<'a> {
         Transactions::new(&self.0[80..])
     }
 }
 
 impl<'a> Transactions<'a> {
-    pub fn new(mut slice: &[u8]) -> Result<Transactions> {
-        let count = read_var_int(&mut slice)?;
-        Ok(Transactions { count, slice })
+    pub fn new(mut slice: &[u8]) -> Transactions {
+        let count = read_var_int(&mut slice);
+        match count {
+            Ok(count) => { Transactions { count, slice } },
+            Err(_) => { Transactions { count: 0, slice } }
+        }
     }
 }

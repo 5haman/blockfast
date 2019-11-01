@@ -1,5 +1,5 @@
 use blockchain::buffer::{read_slice, read_u16, read_u32, read_u8};
-use blockchain::error::{ParseError, ParseResult};
+use types::{ParseError, ParseResult};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 #[allow(non_camel_case_types)]
