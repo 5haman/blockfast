@@ -2,6 +2,12 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use types::{EofError, Result};
 
+macro_rules! read_array {
+    ($slice:expr, $len:expr) => {{
+        ::blockchain::buffer::read_slice($slice, $len).map(|slice| array_ref!(slice, 0, $len))
+    }};
+}
+
 pub fn read_slice<'a>(slice: &mut &'a [u8], len: usize) -> Result<&'a [u8]> {
     if slice.len() < len {
         *slice = &[];
@@ -11,12 +17,6 @@ pub fn read_slice<'a>(slice: &mut &'a [u8], len: usize) -> Result<&'a [u8]> {
         *slice = &slice[len..];
         Ok(res)
     }
-}
-
-macro_rules! read_array {
-    ($slice:expr, $len:expr) => {{
-        ::blockchain::buffer::read_slice($slice, $len).map(|slice| array_ref!(slice, 0, $len))
-    }};
 }
 
 pub fn read_u8(slice: &mut &[u8]) -> Result<u8> {

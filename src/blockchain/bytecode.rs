@@ -1,203 +1,78 @@
-use blockchain::buffer::{read_slice, read_u16, read_u32, read_u8};
+use blockchain::buffer::*;
 use types::{ParseError, ParseResult};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub enum Bytecode<'a> {
-    // 0x00-0x4f, 0x51-0x60
-    OP_PUSH(&'a [u8]),
-
-    // 0x50, 0x89, 0x8a, 0xba-0xff
-    OP_INVALID,
-
-    // 0x61, 0xb0, 0xb2-0xb9
-    OP_NOP,
-
-    // 0x62
-    OP_VER,
-
-    // 0x63
-    OP_IF,
-
-    // 0x64
-    OP_NOTIF,
-
-    // 0x67
-    OP_ELSE,
-
-    // 0x68
-    OP_ENDIF,
-
-    // 0x69
-    OP_VERIFY,
-
-    // 0x6a
-    OP_RETURN,
-
-    // 0x6b
-    OP_TOALTSTACK,
-
-    // 0x6c
-    OP_FROMALTSTACK,
-
-    // 0x6d
-    OP_2DROP,
-
-    // 0x6e
-    OP_2DUP,
-
-    // 0x6f
-    OP_3DUP,
-
-    // 0x70
-    OP_2OVER,
-
-    // 0x71
-    OP_2ROT,
-
-    // 0x72
-    OP_2SWAP,
-
-    // 0x73
-    OP_IFDUP,
-
-    // 0x74
-    OP_DEPTH,
-
-    // 0x75
-    OP_DROP,
-
-    // 0x76
-    OP_DUP,
-
-    // 0x77
-    OP_NIP,
-
-    // 0x78
-    OP_OVER,
-
-    // 0x79
-    OP_PICK,
-
-    // 0x7a
-    OP_ROLL,
-
-    // 0x7b
-    OP_ROT,
-
-    // 0x7c
-    OP_SWAP,
-
-    // 0x7d
-    OP_TUCK,
-
-    // 0x82
-    OP_SIZE,
-
-    // 0x87
-    OP_EQUAL,
-
-    // 0x88
-    OP_EQUALVERIFY,
-
-    // 0x8b
-    OP_1ADD,
-
-    // 0x8c
-    OP_1SUB,
-
-    // 0x8f
-    OP_NEGATE,
-
-    // 0x90
-    OP_ABS,
-
-    // 0x91
-    OP_NOT,
-
-    // 0x92
     OP_0NOTEQUAL,
-
-    // 0x93
+    OP_1ADD,
+    OP_1SUB,
+    OP_2DROP,
+    OP_2DUP,
+    OP_2OVER,
+    OP_2ROT,
+    OP_2SWAP,
+    OP_3DUP,
+    OP_ABS,
     OP_ADD,
-
-    // 0x94
-    OP_SUB,
-
-    // 0x9a
     OP_BOOLAND,
-
-    // 0x9b
     OP_BOOLOR,
-
-    // 0x9c
-    OP_NUMEQUAL,
-
-    // 0x9d
-    OP_NUMEQUALVERIFY,
-
-    // 0x9e
-    OP_NUMNOTEQUAL,
-
-    // 0x9f
-    OP_LESSTHAN,
-
-    // 0xa0
-    OP_GREATERTHAN,
-
-    // 0xa1
-    OP_LESSTHANOREQUAL,
-
-    // 0xa2
-    OP_GREATERTHANOREQUAL,
-
-    // 0xa3
-    OP_MIN,
-
-    // 0xa4
-    OP_MAX,
-
-    // 0xa5
-    OP_WITHIN,
-
-    // 0xa6
-    OP_RIPEMD160,
-
-    // 0xa7
-    OP_SHA1,
-
-    // 0xa8
-    OP_SHA256,
-
-    // 0xa9
-    OP_HASH160,
-
-    // 0xaa
-    OP_HASH256,
-
-    // 0xab
-    OP_CODESEPARATOR,
-
-    // 0xac
-    OP_CHECKSIG,
-
-    // 0xad
-    OP_CHECKSIGVERIFY,
-
-    // 0xae
-    OP_CHECKMULTISIG,
-
-    // 0xaf
-    OP_CHECKMULTISIGVERIFY,
-
-    // 0xb1
     OP_CHECKLOCKTIMEVERIFY,
+    OP_CHECKMULTISIG,
+    OP_CHECKMULTISIGVERIFY,
+    OP_CHECKSIG,
+    OP_CHECKSIGVERIFY,
+    OP_CODESEPARATOR,
+    OP_DEPTH,
+    OP_DROP,
+    OP_DUP,
+    OP_ELSE,
+    OP_ENDIF,
+    OP_EQUAL,
+    OP_EQUALVERIFY,
+    OP_FROMALTSTACK,
+    OP_GREATERTHAN,
+    OP_GREATERTHANOREQUAL,
+    OP_HASH160,
+    OP_HASH256,
+    OP_IF,
+    OP_IFDUP,
+    OP_INVALID,
+    OP_LESSTHAN,
+    OP_LESSTHANOREQUAL,
+    OP_MAX,
+    OP_MIN,
+    OP_NEGATE,
+    OP_NIP,
+    OP_NOP,
+    OP_NOT,
+    OP_NOTIF,
+    OP_NUMEQUAL,
+    OP_NUMEQUALVERIFY,
+    OP_NUMNOTEQUAL,
+    OP_OVER,
+    OP_PICK,
+    OP_PUSH(&'a [u8]),
+    OP_RETURN,
+    OP_RIPEMD160,
+    OP_ROLL,
+    OP_ROT,
+    OP_SHA1,
+    OP_SHA256,
+    OP_SIZE,
+    OP_SUB,
+    OP_SWAP,
+    OP_TOALTSTACK,
+    OP_TUCK,
+    OP_VER,
+    OP_VERIFY,
+    OP_WITHIN,
 }
 
 pub use self::Bytecode::*;
 
 impl<'a> Bytecode<'a> {
-    fn read_raw(slice: &mut &'a [u8], height: u64) -> ParseResult<Bytecode<'a>> {
+    fn read_raw(slice: &mut &'a [u8]) -> ParseResult<Bytecode<'a>> {
         macro_rules! make_static {
             ($val:expr) => {{
                 static VAL: [u8; 1] = [$val];
@@ -249,8 +124,6 @@ impl<'a> Bytecode<'a> {
             0x62 => Ok(OP_VER),
             0x63 => Ok(OP_IF),
             0x64 => Ok(OP_NOTIF),
-            0x65 => Err(ParseError::Invalid), // Simplified from OP_VERIF
-            0x66 => Err(ParseError::Invalid), // Simplified from OP_VERNOTIF
             0x67 => Ok(OP_ELSE),
             0x68 => Ok(OP_ENDIF),
             0x69 => Ok(OP_VERIFY),
@@ -274,34 +147,19 @@ impl<'a> Bytecode<'a> {
             0x7b => Ok(OP_ROT),
             0x7c => Ok(OP_SWAP),
             0x7d => Ok(OP_TUCK),
-            0x7e => Err(ParseError::Invalid), // Simplified from OP_CAT
-            0x7f => Err(ParseError::Invalid), // Simplified from OP_SUBSTR
-            0x80 => Err(ParseError::Invalid), // Simplified from OP_LEFT
-            0x81 => Err(ParseError::Invalid), // Simplified from OP_RIGHT
             0x82 => Ok(OP_SIZE),
-            0x83 => Err(ParseError::Invalid), // Simplified from OP_INVERT
-            0x84 => Err(ParseError::Invalid), // Simplified from OP_AND
-            0x85 => Err(ParseError::Invalid), // Simplified from OP_OR
-            0x86 => Err(ParseError::Invalid), // Simplified from OP_XOR
             0x87 => Ok(OP_EQUAL),
             0x88 => Ok(OP_EQUALVERIFY),
             0x89 => Ok(OP_INVALID),
             0x8a => Ok(OP_INVALID),
             0x8b => Ok(OP_1ADD),
             0x8c => Ok(OP_1SUB),
-            0x8d => Err(ParseError::Invalid), // Simplified from OP_2MUL
-            0x8e => Err(ParseError::Invalid), // Simplified from OP_2DIV
             0x8f => Ok(OP_NEGATE),
             0x90 => Ok(OP_ABS),
             0x91 => Ok(OP_NOT),
             0x92 => Ok(OP_0NOTEQUAL),
             0x93 => Ok(OP_ADD),
             0x94 => Ok(OP_SUB),
-            0x95 => Err(ParseError::Invalid), // Simplified from OP_MUL
-            0x96 => Err(ParseError::Invalid), // Simplified from OP_DIV
-            0x97 => Err(ParseError::Invalid), // Simplified from OP_MOD
-            0x98 => Err(ParseError::Invalid), // Simplified from OP_LSHIFT
-            0x99 => Err(ParseError::Invalid), // Simplified from OP_RSHIFT
             0x9a => Ok(OP_BOOLAND),
             0x9b => Ok(OP_BOOLOR),
             0x9c => Ok(OP_NUMEQUAL),
@@ -324,22 +182,17 @@ impl<'a> Bytecode<'a> {
             0xad => Ok(OP_CHECKSIGVERIFY),
             0xae => Ok(OP_CHECKMULTISIG),
             0xaf => Ok(OP_CHECKMULTISIGVERIFY),
-            0xb0 => Ok(OP_NOP),
-            0xb1 => {
-                if height >= 388381 {
-                    Ok(OP_CHECKLOCKTIMEVERIFY)
-                } else {
-                    Ok(OP_NOP)
-                }
-            }
-            0xb2..=0xb9 => Ok(OP_NOP),
+            0xb0..=0xb9 => Ok(OP_NOP),
             0xba..=0xff => Ok(OP_INVALID),
+            0x65 | 0x66 | 0x7e | 0x7f | 0x8d | 0x8e | 0x80..=0x86 | 0x95..=0x99 => {
+                Err(ParseError::Invalid)
+            }
         }
     }
 
-    pub fn read(slice: &mut &'a [u8], height: u64) -> ParseResult<Bytecode<'a>> {
+    pub fn read(slice: &mut &'a [u8]) -> ParseResult<Bytecode<'a>> {
         loop {
-            match Bytecode::read_raw(slice, height) {
+            match Bytecode::read_raw(slice) {
                 Ok(OP_NOP) => continue,
                 res => return res,
             }

@@ -1,6 +1,6 @@
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
-use rustc_serialize::hex::{FromHex, ToHex};
+use rustc_serialize::hex::ToHex;
 use std::ops::{Deref, DerefMut};
 use std::{fmt, hash, mem};
 
@@ -26,16 +26,6 @@ impl hash::Hash for Hash {
 }
 
 impl Hash {
-    pub fn from_pretty(s: &str) -> Hash {
-        let buf = s.from_hex().unwrap();
-        assert_eq!(buf.len(), 32);
-        let mut out = [0u8; 32];
-        for n in 0..32 {
-            out[n] = buf[31 - n];
-        }
-        Hash(out)
-    }
-
     pub fn from_data(data: &[u8]) -> Hash {
         let mut out = [0u8; 32];
         let mut hasher1 = Sha256::new();

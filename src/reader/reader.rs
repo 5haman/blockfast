@@ -1,24 +1,26 @@
-use crossbeam_channel::{Sender};
+use crossbeam_channel::Sender;
 use std::collections::HashMap;
+use std::collections::HashSet;
+use vec_map::VecMap;
 
-use blockchain::block::{Block};
-use reader::chain::Blockchain;
-use types::{ThreadResult};
+use blockchain::address::Address;
+use blockchain::block::Block;
 use blockchain::hash::{Hash, ZERO_HASH};
 use blockchain::transaction::Transaction;
+use reader::chain::Blockchain;
+use types::ThreadResult;
 
-//use reader::Visitor;
-
-pub struct Reader<'a> {
-    tx: Sender<ThreadResult<'a>>,
+pub struct Reader {
+    tx: Sender<ThreadResult>,
 }
 
-impl<'a> Reader<'a> {
-    pub fn new(tx: Sender<ThreadResult<'a>>) -> Self {
+impl Reader {
+    pub fn new(tx: Sender<ThreadResult>) -> Self {
         Self { tx: tx.clone() }
     }
 
-    pub fn run(&self, chain: &'a Blockchain) {
+    pub fn run(&self, chain: &Blockchain) {
+        let mut output_items: HashMap<Hash, VecMap<Vec<Address>>> = Default::default();
         let mut skipped: HashMap<Hash, Block> = Default::default();
         let mut goal_prev_hash: Hash = ZERO_HASH;
         let mut last_block: Option<Block> = None;
@@ -35,10 +37,10 @@ impl<'a> Reader<'a> {
             );
             while mmap_slice.len() > 0 {
                 if skipped.contains_key(&goal_prev_hash) {
-                    self.on_block(&last_block.unwrap(), height);
+                    self.on_block(&last_block.unwrap(), &mut output_items);
                     height += 1;
                     while let Some(block) = skipped.remove(&goal_prev_hash) {
-                        self.on_block(&block, height);
+                        self.on_block(&block, &mut output_items);
                         height += 1;
                         goal_prev_hash = block.header().cur_hash();
                         last_block = None;
@@ -82,12 +84,11 @@ impl<'a> Reader<'a> {
                             }
                         }
                     }
-
                     continue;
                 }
 
                 if let Some(last_block) = last_block {
-                    self.on_block(&last_block, height);
+                    self.on_block(&last_block, &mut output_items);
                     height += 1;
                 }
 
@@ -96,26 +97,31 @@ impl<'a> Reader<'a> {
             }
         }
 
-        //visitor.done();
-
         self.tx
             .send(ThreadResult::OnComplete("Finished".to_string()))
             .unwrap();
     }
 
-    pub fn on_block(&self, block: &Block<'a>, height: u64) {
-        let mut transactions = block.transactions();
+    pub fn on_block(&self, block: &Block, output_items: &mut HashMap<Hash, VecMap<Vec<Address>>>) {
+        let transactions = block.transactions();
         let mut slice = transactions.slice;
         for _ in 0..transactions.count {
-            match Transaction::read(&mut slice, block.header().timestamp(), height) {
-                Ok(transaction) => {
-                    self.tx
-                        .send(ThreadResult::OnTransaction(transaction))
-                        .unwrap();
+            let mut transaction_item = HashSet::<Address>::new();
+
+            match Transaction::read(
+                &mut slice,
+                block.header().timestamp(),
+                output_items,
+                &mut transaction_item,
+            ) {
+                Ok(ok) => {
+                    if ok {
+                        self.tx
+                            .send(ThreadResult::OnTransaction(transaction_item))
+                            .unwrap();
+                    }
                 }
-                Err(err) => {
-                    self.tx.send(ThreadResult::OnError(err)).unwrap();
-                }
+                Err(_) => {}
             }
         }
 

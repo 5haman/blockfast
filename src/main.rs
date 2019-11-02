@@ -103,7 +103,7 @@ fn main() {
         });
 
         let _ = scope.spawn(|_| {
-            let consumer = Consumer::new(rx);
+            let mut consumer = Consumer::new(rx);
             consumer.run();
         });
     })

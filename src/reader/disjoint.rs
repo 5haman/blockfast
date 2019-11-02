@@ -100,4 +100,11 @@ where
             return Ok(y_root);
         }
     }
+
+    /// Forces all laziness, updating every tag.
+    pub fn finalize(&mut self) {
+        for _i in 0..self.set_size {
+            //DisjointSet::<T>::find_internal(&mut self.parent, i);
+        }
+    }
 }

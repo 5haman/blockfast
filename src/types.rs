@@ -1,6 +1,7 @@
-use std::{io, result};
+use std::collections::HashSet;
+use std::result;
 
-use blockchain::transaction::Transaction;
+use blockchain::address::Address;
 
 #[derive(Debug)]
 pub struct EofError;
@@ -13,27 +14,13 @@ pub enum ParseError {
     Invalid,
 }
 
-pub enum ThreadResult<'a> {
-    OnTransaction(Transaction<'a>),
+pub enum ThreadResult {
+    OnTransaction(HashSet<Address>),
     OnComplete(String),
     OnError(ParseError),
 }
 
 pub type ParseResult<T> = result::Result<T, ParseError>;
-
-impl From<io::Error> for EofError {
-    fn from(val: io::Error) -> EofError {
-        assert_eq!(val.kind(), io::ErrorKind::UnexpectedEof);
-        EofError
-    }
-}
-
-impl From<io::Error> for ParseError {
-    fn from(val: io::Error) -> ParseError {
-        assert_eq!(val.kind(), io::ErrorKind::UnexpectedEof);
-        ParseError::Eof
-    }
-}
 
 impl From<EofError> for ParseError {
     fn from(_: EofError) -> ParseError {

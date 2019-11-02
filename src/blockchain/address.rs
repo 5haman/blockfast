@@ -4,32 +4,29 @@ use std::fmt;
 use blockchain::hash::Hash;
 use blockchain::hash160::Hash160;
 
-#[derive(PartialEq, Eq, Clone, Default, Hash, Ord, PartialOrd)]
-pub struct Address(pub String);
+#[derive(PartialEq, Eq, Copy, Clone, Hash, Default, Ord, PartialOrd)]
+pub struct Address {
+    pub hash: Hash160,
+    pub version: u8,
+}
 
 impl fmt::Display for Address {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        self.0.fmt(formatter)
+        let v: Vec<u8> = [&[self.version], &self.hash[..]].concat();
+        let h = Hash::from_data(&v);
+        let address = [&v, &h[0..4]].concat().to_base58();
+        address.fmt(formatter)
     }
 }
 
 impl Address {
     pub fn from_pubkey(pubkey: &[u8], version: u8) -> Address {
-        let hash160 = Hash160::from_data(pubkey);
-        return Address::from_hash160(&hash160, version);
+        let hash = Hash160::from_data(pubkey);
+        return Address { hash, version };
     }
 
     pub fn from_hash160(hash160: &Hash160, version: u8) -> Address {
-        let v: Vec<u8> = [&[version], hash160.as_slice()].concat();
-        let h = Hash::from_data(&v);
-        Address([&v, &h[0..4]].concat().to_base58())
-    }
-
-    pub fn as_slice(&self) -> &str {
-        &self.0
-    }
-
-    pub fn as_mut_slice(&mut self) -> &mut str {
-        &mut self.0
+        let hash = *hash160;
+        return Address { hash, version };
     }
 }
