@@ -15,12 +15,12 @@ pub struct Clusters {
 }
 
 impl Clusters {
-    pub fn new(rx: Receiver<TransactionMessage>) -> Self {
+    pub fn new(output: &str, rx: Receiver<TransactionMessage>) -> Self {
         Self {
             rx: rx.clone(),
             clusters: DisjointSet::<Address>::new(),
             writer: LineWriter::new(
-                File::create("nodes2.csv").expect("Unable to create nodes file!"),
+                File::create(output).expect("Unable to create nodes file!"),
             ),
         }
     }

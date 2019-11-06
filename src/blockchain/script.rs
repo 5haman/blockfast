@@ -5,14 +5,14 @@ use blockchain::bytecode::Bytecode;
 use blockchain::bytecode::Bytecode::*;
 use parser::{ParseError, ParseResult};
 
-#[derive(PartialEq, Clone)]
+#[derive(Clone)]
 pub enum ScriptType<'a> {
     Pubkey(&'a [u8]),
     PubkeyHash(&'a [u8; 20]),
-    WitnessPubkeyHash(WitnessProgram),
+    WitnessPubkeyHash(&'a [u8; 22]),
     Multisig(u32, Vec<&'a [u8]>),
     ScriptHash(&'a [u8; 20]),
-    WitnessScriptHash(WitnessProgram),
+    WitnessScriptHash(&'a [u8; 34]),
     Unknown(Script<'a>),
     Invalid,
 }
@@ -58,7 +58,7 @@ impl<'a> Script<'a> {
                             &self.slice[..22],
                             Network::Bitcoin,
                         ) {
-                            Ok(w) => ScriptType::WitnessPubkeyHash(w),
+                            Ok(_) => ScriptType::WitnessPubkeyHash(array_ref!(&self.slice, 0, 22)),
                             Err(_) => ScriptType::Invalid,
                         };
                     }
@@ -91,7 +91,7 @@ impl<'a> Script<'a> {
                             &self.slice[..34],
                             Network::Bitcoin,
                         ) {
-                            Ok(w) => ScriptType::WitnessScriptHash(w),
+                            Ok(_) => ScriptType::WitnessScriptHash(array_ref!(&self.slice, 0, 34)),
                             Err(_) => ScriptType::Invalid,
                         };
                     }

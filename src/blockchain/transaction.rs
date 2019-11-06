@@ -21,15 +21,12 @@ pub struct TransactionInput<'a> {
     pub prev_hash: &'a Hash,
     pub prev_index: u32,
     pub script: Script<'a>,
-    //pub sequence_no: u32,
-    //pub slice: &'a [u8],
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct TransactionOutput<'a> {
     pub value: u64,
     pub script: Script<'a>,
-    //pub slice: &'a [u8],
 }
 
 impl Transaction {
@@ -80,7 +77,8 @@ impl Transaction {
             match output_item {
                 Some(address) => {
                     for n in 0..address.len() {
-                        transaction_item.insert(address[n]);
+                        let addr = &address[n];
+                        transaction_item.insert(*addr);
                     }
                 }
                 None => {}
@@ -108,11 +106,11 @@ impl Transaction {
                         .map(|pk| Address::from_pubkey(pk, 0x05))
                         .collect(),
                 ),
-                ScriptType::WitnessPubkeyHash(w) | ScriptType::WitnessScriptHash(w) => {
-                    Some(vec![Address {
-                        hash: Hash160::from_data(&w.to_scriptpubkey()),
-                        version: 1,
-                    }])
+                ScriptType::WitnessScriptHash(w) => {
+                    Some(vec![Address::from_witness_script(w)])
+                },
+                ScriptType::WitnessPubkeyHash(w) => {
+                    Some(vec![Address::from_witness_pubkey(w)])
                 }
                 _ => None,
             };
@@ -177,8 +175,6 @@ impl<'a> TransactionInput<'a> {
             prev_hash,
             prev_index,
             script: Script::new(script, timestamp),
-            //sequence_no,
-            //slice: read_slice(&mut init_slice, len)?,
         })
     }
 }
@@ -204,7 +200,6 @@ impl<'a> TransactionOutput<'a> {
         Ok(TransactionOutput {
             value,
             script: Script::new(script, timestamp),
-            //slice: read_slice(&mut init_slice, len)?,
         })
     }
 }

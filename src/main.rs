@@ -36,6 +36,7 @@ use parser::transactions::Transactions;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const DEF_BLOCKS_DIR: &'static str = "~/.bitcoin/blocks";
+const DEF_OUTPUT: &'static str = "clusters.csv";
 const DEF_MAX_BLOCK: &'static str = "10";
 const DEF_QUEUE_SIZE: &'static str = "100";
 
@@ -50,6 +51,14 @@ fn main() {
                 .short("b")
                 .takes_value(true)
                 .default_value(DEF_BLOCKS_DIR),
+        )
+        .arg(
+            Arg::with_name("output")
+                .help("Output file")
+                .long("output")
+                .short("o")
+                .takes_value(true)
+                .default_value(DEF_OUTPUT),
         )
         .arg(
             Arg::with_name("max_block")
@@ -87,6 +96,8 @@ fn main() {
     info!("Starting blockchain parser...");
 
     let blocks_dir = matches.value_of("blocks_dir").unwrap();
+    let output = matches.value_of("output").unwrap();
+
     let max_block = matches.value_of("max_block").unwrap().parse().unwrap();
     let queue_size = matches.value_of("queue_size").unwrap().parse().unwrap();
 
@@ -107,7 +118,7 @@ fn main() {
         });
 
         let _ = scope.spawn(|_| {
-            let mut c = Clusters::new(tx_in);
+            let mut c = Clusters::new(output, tx_in);
             c.run();
         });
     })
