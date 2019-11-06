@@ -1,6 +1,6 @@
 use byteorder::{ByteOrder, LittleEndian};
 
-use types::{EofError, Result};
+use parser::{EofError, Result};
 
 macro_rules! read_array {
     ($slice:expr, $len:expr) => {{

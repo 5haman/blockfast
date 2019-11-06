@@ -1,13 +1,22 @@
 use base58::ToBase58;
-use std::fmt;
+use std::{fmt,hash};
 
 use blockchain::hash::Hash;
 use blockchain::hash160::Hash160;
 
-#[derive(PartialEq, Eq, Copy, Clone, Hash, Default, Ord, PartialOrd)]
+#[derive(PartialEq, Eq, Copy, Clone, Default, Ord, PartialOrd)]
 pub struct Address {
     pub hash: Hash160,
     pub version: u8,
+}
+
+impl hash::Hash for Address {
+    fn hash<H>(&self, hasher: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        hasher.write(&self.hash[..]);
+    }
 }
 
 impl fmt::Display for Address {

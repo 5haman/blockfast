@@ -2,7 +2,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use blockchain::buffer::*;
 use blockchain::hash::Hash;
-use types::{ParseError, ParseResult};
+use parser::{ParseError, ParseResult};
 
 pub struct BlockHeader<'a>(&'a [u8; 80]);
 

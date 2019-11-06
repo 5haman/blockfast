@@ -1,19 +1,11 @@
 use crypto::digest::Digest;
 use crypto::ripemd160::Ripemd160;
 use crypto::sha2::Sha256;
-use rustc_serialize::hex::ToHex;
 use std::ops::{Deref, DerefMut};
-use std::{fmt, hash, mem};
+use std::{hash, mem};
 
 #[derive(PartialEq, Eq, Copy, Clone, Default, Ord, PartialOrd)]
 pub struct Hash160([u8; 20]);
-
-impl fmt::Display for Hash160 {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let hash = self.0.to_hex();
-        hash.fmt(formatter)
-    }
-}
 
 impl hash::Hash for Hash160 {
     fn hash<H>(&self, hasher: &mut H)

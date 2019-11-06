@@ -3,16 +3,16 @@ use bitcoin_bech32::WitnessProgram;
 
 use blockchain::bytecode::Bytecode;
 use blockchain::bytecode::Bytecode::*;
-use types::{ParseError, ParseResult};
+use parser::{ParseError, ParseResult};
 
 #[derive(PartialEq, Clone)]
-pub enum HighLevel<'a> {
-    PayToPubkey(&'a [u8]),
-    PayToPubkeyHash(&'a [u8; 20]),
-    PayToWitnessPubkeyHash(WitnessProgram),
-    PayToMultisig(u32, Vec<&'a [u8]>),
-    PayToScriptHash(&'a [u8; 20]),
-    PayToWitnessScriptHash(WitnessProgram),
+pub enum ScriptType<'a> {
+    Pubkey(&'a [u8]),
+    PubkeyHash(&'a [u8; 20]),
+    WitnessPubkeyHash(WitnessProgram),
+    Multisig(u32, Vec<&'a [u8]>),
+    ScriptHash(&'a [u8; 20]),
+    WitnessScriptHash(WitnessProgram),
     Unknown(Script<'a>),
     Invalid,
 }
@@ -45,7 +45,7 @@ impl<'a> Script<'a> {
         self.slice
     }
 
-    pub fn to_highlevel(&self) -> HighLevel<'a> {
+    pub fn to_scripttype(&self) -> ScriptType<'a> {
         let mut skipped_iter = self.iter();
         skipped_iter.skip_nops();
         let skipped_slice = skipped_iter.slice;
@@ -58,8 +58,8 @@ impl<'a> Script<'a> {
                             &self.slice[..22],
                             Network::Bitcoin,
                         ) {
-                            Ok(w) => HighLevel::PayToWitnessPubkeyHash(w),
-                            Err(_) => HighLevel::Invalid,
+                            Ok(w) => ScriptType::WitnessPubkeyHash(w),
+                            Err(_) => ScriptType::Invalid,
                         };
                     }
                 }
@@ -69,11 +69,11 @@ impl<'a> Script<'a> {
                     && (&skipped_slice[23..] == &[0x88, 0xac]
                         || &skipped_slice[23..] == &[0x88, 0xac, 0x61])
                 {
-                    return HighLevel::PayToPubkeyHash(array_ref!(skipped_slice, 3, 20));
+                    return ScriptType::PubkeyHash(array_ref!(skipped_slice, 3, 20));
                 }
                 if self.timestamp >= 1333238400 {
                     if &self.slice[..2] == &[0xa9, 0x14] && self.slice[22] == 0x87 {
-                        return HighLevel::PayToScriptHash(array_ref!(self.slice, 2, 20));
+                        return ScriptType::ScriptHash(array_ref!(self.slice, 2, 20));
                     }
                 }
             }
@@ -81,7 +81,7 @@ impl<'a> Script<'a> {
                 if &skipped_slice[..3] == &[0x76, 0xa9, 0x14]
                     && &skipped_slice[23..] == &[0x88, 0xac, 0x61]
                 {
-                    return HighLevel::PayToPubkeyHash(array_ref!(skipped_slice, 3, 20));
+                    return ScriptType::PubkeyHash(array_ref!(skipped_slice, 3, 20));
                 }
             }
             34 => {
@@ -91,8 +91,8 @@ impl<'a> Script<'a> {
                             &self.slice[..34],
                             Network::Bitcoin,
                         ) {
-                            Ok(w) => HighLevel::PayToWitnessScriptHash(w),
-                            Err(_) => HighLevel::Invalid,
+                            Ok(w) => ScriptType::WitnessScriptHash(w),
+                            Err(_) => ScriptType::Invalid,
                         };
                     }
                 }
@@ -101,9 +101,9 @@ impl<'a> Script<'a> {
                 if skipped_slice[0] == 33 && skipped_slice[34] == 0xac {
                     let pubkey = &skipped_slice[1..1 + 33];
                     if is_valid_pubkey(pubkey) {
-                        return HighLevel::PayToPubkey(pubkey);
+                        return ScriptType::Pubkey(pubkey);
                     } else {
-                        return HighLevel::Invalid;
+                        return ScriptType::Invalid;
                     }
                 }
             }
@@ -111,9 +111,9 @@ impl<'a> Script<'a> {
                 if skipped_slice[0] == 65 && skipped_slice[66] == 0xac {
                     let pubkey = &skipped_slice[1..1 + 65];
                     if is_valid_pubkey(pubkey) {
-                        return HighLevel::PayToPubkey(pubkey);
+                        return ScriptType::Pubkey(pubkey);
                     } else {
-                        return HighLevel::Invalid;
+                        return ScriptType::Invalid;
                     }
                 }
             }
@@ -133,14 +133,14 @@ impl<'a> Script<'a> {
                         if nest_level == 0 {
                             break;
                         } else {
-                            return HighLevel::Invalid;
+                            return ScriptType::Invalid;
                         }
                     }
-                    Err(ParseError::Invalid) => return HighLevel::Invalid,
+                    Err(ParseError::Invalid) => return ScriptType::Invalid,
                     Ok(OP_ELSE) | Ok(OP_ENDIF) | Ok(OP_RETURN) | Ok(OP_INVALID) | Ok(OP_VER)
                         if nest_level == 0 =>
                     {
-                        return HighLevel::Invalid
+                        return ScriptType::Invalid
                     }
                     Ok(OP_IF) | Ok(OP_NOTIF) => {
                         nest_level += 1;
@@ -153,7 +153,7 @@ impl<'a> Script<'a> {
             }
         }
 
-        HighLevel::Unknown(*self)
+        ScriptType::Unknown(*self)
     }
 }
 
@@ -178,7 +178,7 @@ impl<'a> ScriptIter<'a> {
         }
     }
 
-    pub fn read_pay_to_multisig(&mut self) -> ParseResult<HighLevel<'a>> {
+    pub fn read_pay_to_multisig(&mut self) -> ParseResult<ScriptType<'a>> {
         let signeed = match self.read() {
             Ok(OP_PUSH(data)) => bytes_to_u32(data)?,
             _ => return Err(ParseError::Invalid),
@@ -206,9 +206,9 @@ impl<'a> ScriptIter<'a> {
         if sigtotal as usize == out.len() {
             if signeed as usize <= out.iter().filter(|pubkey| is_valid_pubkey(pubkey)).count() {
                 out.shrink_to_fit();
-                Ok(HighLevel::PayToMultisig(signeed, out))
+                Ok(ScriptType::Multisig(signeed, out))
             } else {
-                Ok(HighLevel::Invalid)
+                Ok(ScriptType::Invalid)
             }
         } else {
             Err(ParseError::Invalid)
@@ -258,15 +258,5 @@ pub fn is_valid_pubkey(pubkey: &[u8]) -> bool {
         (0x03, 33) => true,
         (0x04, 65) => true,
         _ => false,
-    }
-}
-
-pub fn bytes_to_bool(bytes: &[u8]) -> bool {
-    if bytes.is_empty() {
-        false
-    } else if bytes[0] & 0x7f != 0 {
-        true
-    } else {
-        bytes[1..].iter().any(|b| *b != 0)
     }
 }

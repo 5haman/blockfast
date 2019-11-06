@@ -1,24 +1,19 @@
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use std::collections::hash_map::Entry as HashEntry;
-use std::collections::{HashMap, HashSet};
 use vec_map::VecMap;
+use std::collections::{HashMap, HashSet};
 
 use blockchain::address::Address;
 use blockchain::buffer::*;
 use blockchain::hash::*;
 use blockchain::hash160::Hash160;
 use blockchain::script::*;
-use types::*;
+use parser::Result;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
-pub struct Transaction<'a> {
-    pub version: u32,
-    pub txid: Hash,
-    pub txins_count: u64,
-    pub txouts_count: u64,
-    pub lock_time: u32,
-    pub slice: &'a [u8],
+pub struct Transaction {
+
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -26,20 +21,20 @@ pub struct TransactionInput<'a> {
     pub prev_hash: &'a Hash,
     pub prev_index: u32,
     pub script: Script<'a>,
-    pub sequence_no: u32,
-    pub slice: &'a [u8],
+    //pub sequence_no: u32,
+    //pub slice: &'a [u8],
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct TransactionOutput<'a> {
     pub value: u64,
     pub script: Script<'a>,
-    pub slice: &'a [u8],
+    //pub slice: &'a [u8],
 }
 
-impl<'a> Transaction<'a> {
+impl Transaction {
     pub fn read(
-        slice: &mut &'a [u8],
+        slice: &mut &[u8],
         timestamp: u32,
         output_items: &mut HashMap<Hash, VecMap<Vec<Address>>>,
         transaction_item: &mut HashSet<Address>,
@@ -47,9 +42,6 @@ impl<'a> Transaction<'a> {
         let mut tx_hash = [0u8; 32];
         let mut sha256_hasher1 = Sha256::new();
         let mut sha256_hasher2 = sha256_hasher1;
-
-        // Save the initial position in two slices
-        //let mut init_slice = *slice;
 
         sha256_hasher1.input(&slice[..4]);
         let _ = read_u32(slice)?;
@@ -88,7 +80,6 @@ impl<'a> Transaction<'a> {
             match output_item {
                 Some(address) => {
                     for n in 0..address.len() {
-                        //let a = address[n];
                         transaction_item.insert(address[n]);
                     }
                 }
@@ -102,22 +93,22 @@ impl<'a> Transaction<'a> {
         let mut cur_output_items = VecMap::with_capacity(txouts_count as usize);
         for n in 0..txouts_count {
             let txout = TransactionOutput::read(slice, timestamp)?;
-            let output_item = match txout.script.to_highlevel() {
-                HighLevel::PayToPubkeyHash(pkh) => {
+            let output_item = match txout.script.to_scripttype() {
+                ScriptType::PubkeyHash(pkh) => {
                     Some(vec![Address::from_hash160(Hash160::from_slice(pkh), 0x00)])
                 }
-                HighLevel::PayToScriptHash(pkh) => {
+                ScriptType::ScriptHash(pkh) => {
                     Some(vec![Address::from_hash160(Hash160::from_slice(pkh), 0x05)])
                 }
-                HighLevel::PayToPubkey(pk) => {
+                ScriptType::Pubkey(pk) => {
                     Some(vec![Address::from_hash160(&Hash160::from_data(pk), 0x00)])
                 }
-                HighLevel::PayToMultisig(_, pks) => Some(
+                ScriptType::Multisig(_, pks) => Some(
                     pks.iter()
                         .map(|pk| Address::from_pubkey(pk, 0x05))
                         .collect(),
                 ),
-                HighLevel::PayToWitnessPubkeyHash(w) | HighLevel::PayToWitnessScriptHash(w) => {
+                ScriptType::WitnessPubkeyHash(w) | ScriptType::WitnessScriptHash(w) => {
                     Some(vec![Address {
                         hash: Hash160::from_data(&w.to_scriptpubkey()),
                         version: 1,
@@ -178,14 +169,16 @@ impl<'a> TransactionInput<'a> {
         let script = read_slice(slice, nbytes)?;
 
         // Read the sequence_no
-        let sequence_no = read_u32(slice)?;
+        let _ = read_u32(slice)?;
         let len = init_slice.len() - slice.len();
+        let _ = read_slice(&mut init_slice, len)?;
+
         Ok(TransactionInput {
             prev_hash,
             prev_index,
             script: Script::new(script, timestamp),
-            sequence_no,
-            slice: read_slice(&mut init_slice, len)?,
+            //sequence_no,
+            //slice: read_slice(&mut init_slice, len)?,
         })
     }
 }
@@ -207,10 +200,11 @@ impl<'a> TransactionOutput<'a> {
 
         // Return the transaction output
         let len = init_slice.len() - slice.len();
+        let _ = read_slice(&mut init_slice, len)?;
         Ok(TransactionOutput {
             value,
             script: Script::new(script, timestamp),
-            slice: read_slice(&mut init_slice, len)?,
+            //slice: read_slice(&mut init_slice, len)?,
         })
     }
 }

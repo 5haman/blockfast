@@ -13,15 +13,15 @@ extern crate crossbeam_channel;
 extern crate crossbeam_utils;
 extern crate crypto;
 extern crate dirs;
+extern crate hash_hasher;
+extern crate md5;
 extern crate memmap;
-extern crate rayon;
 extern crate rustc_serialize;
 extern crate time;
 extern crate vec_map;
 
 pub mod blockchain;
-pub mod reader;
-pub mod types;
+pub mod parser;
 
 use clap::{App, Arg};
 use crossbeam_channel::bounded;
@@ -29,18 +29,15 @@ use crossbeam_utils::thread;
 use std::env;
 use std::io::Write;
 
-use reader::chain::Blockchain;
-use reader::reader::Reader;
-use reader::consumer:: Consumer;
-
-#[cfg(all(target_env = "musl", target_pointer_width = "64"))]
-#[global_allocator]
-static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
+use parser::blockchain::Blockchain;
+use parser::blocks::Blocks;
+use parser::clusters::Clusters;
+use parser::transactions::Transactions;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const DEF_BLOCKS_DIR: &'static str = "~/.bitcoin/blocks";
 const DEF_MAX_BLOCK: &'static str = "10";
-const DEF_QUEUE_SIZE: &'static str = "1024";
+const DEF_QUEUE_SIZE: &'static str = "100";
 
 fn main() {
     let matches = App::new("Fast Blockchain Parser")
@@ -64,7 +61,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("queue_size")
-                .help("Size of wworkers queue")
+                .help("Size of workers queue")
                 .long("queue-size")
                 .short("q")
                 .takes_value(true)
@@ -93,18 +90,25 @@ fn main() {
     let max_block = matches.value_of("max_block").unwrap().parse().unwrap();
     let queue_size = matches.value_of("queue_size").unwrap().parse().unwrap();
 
-    let chain = unsafe { Blockchain::read(blocks_dir, max_block) };
-    let (tx, rx) = bounded(queue_size);
+    let blockchain: Blockchain = Blockchain::new(blocks_dir, max_block);
+
+    let (block_out, block_in) = bounded(queue_size);
+    let (tx_out, tx_in) = bounded(queue_size);
 
     thread::scope(|scope| {
         let _ = scope.spawn(|_| {
-            let reader = Reader::new(tx);
-            reader.run(&chain);
+            let mut b = Blocks::new(block_out);
+            b.run(&blockchain);
         });
 
         let _ = scope.spawn(|_| {
-            let mut consumer = Consumer::new(rx);
-            consumer.run();
+            let t = Transactions::new(block_in, tx_out);
+            t.run();
+        });
+
+        let _ = scope.spawn(|_| {
+            let mut c = Clusters::new(tx_in);
+            c.run();
         });
     })
     .unwrap();
