@@ -73,40 +73,39 @@ impl Clusters {
         clusters.finalize();
 
         let prefix = "kyblsoft.cz".to_string();
-        let mut id_vec: Vec<(&usize, &usize, &Address, String)> = Default::default();
+        let mut id_vec: Vec<(u32, u32, &Address)> = Default::default();
 
         for (address, tag) in &clusters.map {
-            let hash = md5::compute(format!("{}:{}", prefix, address)).to_hex();
-            let digest = &hash[0..16];
-            id_vec.push((tag, &clusters.parent[*tag], &address, digest.to_string()));
+            id_vec.push((*tag as u32, clusters.parent[*tag] as u32, &address));
         }
-        id_vec.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
+        id_vec.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
         let mut pos = 0;
         let mut prev_tag = 0;
-        let mut cache: Vec<(&usize, Address, String)> = Default::default();
-        let mut newparent: Vec<usize> = Vec::new();
-        for (_, tag, address, dig) in id_vec {
-            if *tag != prev_tag {
+        let mut cache: Vec<(u32, &Address, [u8; 16])> = Default::default();
+        let mut newparent: Vec<u32> = Vec::new();
+        for (_, tag, address) in id_vec {
+            if tag != prev_tag {
                 cache.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
 
                 let (_, raddress, rdigest) = cache.pop().unwrap();
                 self.writer
-                    .write(&format!("{},{},{}\n", pos, raddress, rdigest).as_bytes())
+                    .write(&format!("{},{},{}\n", pos, raddress, rdigest.to_hex().to_string()).as_bytes())
                     .expect("Unable to write to output file!");
-                newparent.push(pos as usize);
+                newparent.push(pos as u32);
 
                 for (_, raddress, _) in &cache {
                     self.writer
-                        .write(&format!("{},{},{}\n", pos, raddress, rdigest).as_bytes())
+                        .write(&format!("{},{},{}\n", pos, raddress, rdigest.to_hex().to_string()).as_bytes())
                         .expect("Unable to write to output file!");
-                    newparent.push(pos as usize);
+                    newparent.push(pos as u32);
                 }
                 pos = pos + 1;
                 cache.clear();
             }
-            cache.push((tag, address.clone(), dig.clone()));
-            prev_tag = *tag;
+            let hash = md5::compute(format!("{}:{}", prefix, address));
+            cache.push((tag, &address, *hash));
+            prev_tag = tag;
         }
     }
 }

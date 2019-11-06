@@ -23,7 +23,7 @@ const BLOCKS_DIR: &'static str = "~/.bitcoin/blocks";
 const OUTPUT: &'static str = "clusters.csv";
 const GRAPH: &'static str = "blockchain.mtx";
 const MAX_BLOCK: &'static str = "10";
-const QUEUE_SIZE: &'static str = "100";
+const QUEUE_SIZE: usize = 10_000_000;
 
 pub type Result<T> = result::Result<T, EofError>;
 
@@ -89,14 +89,6 @@ impl Config {
                     .takes_value(true)
                     .default_value(MAX_BLOCK),
             )
-            .arg(
-                Arg::with_name("queue_size")
-                    .help("Size of workers queue")
-                    .long("queue-size")
-                    .short("q")
-                    .takes_value(true)
-                    .default_value(QUEUE_SIZE),
-            )
             .get_matches();
 
         let blocks_dir = matches.value_of("blocks_dir").unwrap().as_bytes().to_vec();
@@ -113,7 +105,7 @@ impl Config {
             output: output,
             graph: graph,
             max_block: matches.value_of("max_block").unwrap().parse().unwrap(),
-            queue_size: matches.value_of("queue_size").unwrap().parse().unwrap(),
+            queue_size: QUEUE_SIZE,
         }
     }
 }
