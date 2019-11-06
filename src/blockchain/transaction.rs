@@ -1,8 +1,8 @@
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use std::collections::hash_map::Entry as HashEntry;
-use vec_map::VecMap;
 use std::collections::{HashMap, HashSet};
+use vec_map::VecMap;
 
 use blockchain::address::Address;
 use blockchain::buffer::*;
@@ -12,9 +12,7 @@ use blockchain::script::*;
 use parser::Result;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
-pub struct Transaction {
-
-}
+pub struct Transaction {}
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct TransactionInput<'a> {
@@ -34,7 +32,8 @@ impl Transaction {
         slice: &mut &[u8],
         timestamp: u32,
         output_items: &mut HashMap<Hash, VecMap<Vec<Address>>>,
-        transaction_item: &mut HashSet<Address>,
+        inputs: &mut HashSet<Address>,
+        outputs: &mut HashSet<Address>,
     ) -> Result<bool> {
         let mut tx_hash = [0u8; 32];
         let mut sha256_hasher1 = Sha256::new();
@@ -78,7 +77,8 @@ impl Transaction {
                 Some(address) => {
                     for n in 0..address.len() {
                         let addr = &address[n];
-                        transaction_item.insert(*addr);
+                        //transaction_item.insert(*addr);
+                        inputs.insert(*addr);
                     }
                 }
                 None => {}
@@ -106,17 +106,17 @@ impl Transaction {
                         .map(|pk| Address::from_pubkey(pk, 0x05))
                         .collect(),
                 ),
-                ScriptType::WitnessScriptHash(w) => {
-                    Some(vec![Address::from_witness_script(w)])
-                },
-                ScriptType::WitnessPubkeyHash(w) => {
-                    Some(vec![Address::from_witness_pubkey(w)])
-                }
+                ScriptType::WitnessScriptHash(w) => Some(vec![Address::from_witness_script(w)]),
+                ScriptType::WitnessPubkeyHash(w) => Some(vec![Address::from_witness_pubkey(w)]),
                 _ => None,
             };
 
             if let Some(output_item) = output_item {
+                let ins = output_item.clone();
                 cur_output_items.insert(n as usize, output_item);
+                for addr in ins {
+                    outputs.insert(addr);
+                }
             };
         }
 
@@ -180,10 +180,7 @@ impl<'a> TransactionInput<'a> {
 }
 
 impl<'a> TransactionOutput<'a> {
-    pub fn read(
-        slice: &mut &'a [u8],
-        timestamp: u32,
-    ) -> Result<TransactionOutput<'a>> {
+    pub fn read(slice: &mut &'a [u8], timestamp: u32) -> Result<TransactionOutput<'a>> {
         // Save the initial position
         let mut init_slice = *slice;
 

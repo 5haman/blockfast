@@ -5,7 +5,14 @@ use vec_map::VecMap;
 use blockchain::address::Address;
 use blockchain::hash::Hash;
 use blockchain::transaction::Transaction;
-use parser::{BlockMessage, TransactionMessage};
+use parser::blocks::BlockMessage;
+use parser::ParseError;
+
+pub enum TransactionMessage {
+    OnTransaction(Vec<HashSet<Address>>),
+    OnComplete(bool),
+    OnError(ParseError),
+}
 
 pub struct Transactions<'a> {
     tx: Sender<TransactionMessage>,
@@ -30,20 +37,29 @@ impl<'a> Transactions<'a> {
                             let mut slice = transactions.slice;
                             for _ in 0..transactions.count {
                                 if slice.len() > 0 {
-                                    let mut transaction_item = HashSet::<Address>::new();
+                                    let mut inputs = HashSet::<Address>::new();
+                                    let mut outputs = HashSet::<Address>::new();
 
                                     match Transaction::read(
                                         &mut slice,
                                         block.header().timestamp(),
                                         &mut output_items,
-                                        &mut transaction_item,
+                                        &mut inputs,
+                                        &mut outputs,
                                     ) {
                                         Ok(ok) => {
                                             if ok {
-                                                self.tx.send(TransactionMessage::OnTransaction(transaction_item)).unwrap();
+                                                let mut tx_msg = Vec::new();
+                                                tx_msg.push(inputs);
+                                                tx_msg.push(outputs);
+                                                self.tx
+                                                    .send(TransactionMessage::OnTransaction(tx_msg))
+                                                    .unwrap();
                                             }
                                         }
-                                        Err(_) => {}
+                                        Err(_) => {
+                                            warn!("Error processing transaction");
+                                        }
                                     }
                                 }
                             }

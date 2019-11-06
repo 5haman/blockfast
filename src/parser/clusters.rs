@@ -6,33 +6,32 @@ use std::io::{LineWriter, Write};
 
 use blockchain::address::Address;
 use parser::disjoint::DisjointSet;
-use parser::TransactionMessage;
+use parser::transactions::TransactionMessage;
+use parser::Config;
 
 pub struct Clusters {
     rx: Receiver<TransactionMessage>,
-    clusters: DisjointSet<Address>,
     writer: LineWriter<File>,
 }
 
 impl Clusters {
-    pub fn new(output: &str, rx: Receiver<TransactionMessage>) -> Self {
+    pub fn new(rx: Receiver<TransactionMessage>, config: &Config) -> Self {
+        let output = &config.output;
+        let writer = LineWriter::new(File::create(output).expect("Unable to create output file!"));
         Self {
+            writer: writer,
             rx: rx.clone(),
-            clusters: DisjointSet::<Address>::new(),
-            writer: LineWriter::new(
-                File::create(output).expect("Unable to create nodes file!"),
-            ),
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, clusters: &mut DisjointSet<Address>) {
         let mut done = false;
         loop {
             if !self.rx.is_empty() {
                 match self.rx.recv() {
                     Ok(msg) => match msg {
                         TransactionMessage::OnTransaction(tx_item) => {
-                            self.on_transaction(&tx_item);
+                            self.on_transaction(&tx_item, clusters);
                         }
                         TransactionMessage::OnComplete(_) => {
                             done = true;
@@ -46,41 +45,47 @@ impl Clusters {
                     }
                 }
             } else if done {
-                self.done();
+                self.done(clusters);
                 return;
             }
         }
     }
 
-    fn on_transaction(&mut self, tx_item: &HashSet<Address>) {
-        if tx_item.len() > 0 {
-            let mut tx_inputs_iter = tx_item.iter();
+    fn on_transaction(
+        &mut self,
+        tx_item: &Vec<HashSet<Address>>,
+        clusters: &mut DisjointSet<Address>,
+    ) {
+        let inputs = tx_item.first().unwrap();
+        if inputs.len() > 0 {
+            let mut tx_inputs_iter = inputs.iter();
             let mut last_address = tx_inputs_iter.next().unwrap();
-            self.clusters.make_set(last_address.to_owned());
+            clusters.make_set(last_address.to_owned());
             for address in tx_inputs_iter {
-                self.clusters.make_set(address.to_owned());
-                let _ = self.clusters.union(last_address, address);
+                clusters.make_set(address.to_owned());
+                let _ = clusters.union(last_address, address);
                 last_address = &address;
             }
         }
     }
 
-    fn done(&mut self) {
-        self.clusters.finalize();
+    fn done(&mut self, clusters: &mut DisjointSet<Address>) {
+        clusters.finalize();
 
         let prefix = "kyblsoft.cz".to_string();
         let mut id_vec: Vec<(&usize, &usize, &Address, String)> = Default::default();
 
-        for (address, tag) in &self.clusters.map {
+        for (address, tag) in &clusters.map {
             let hash = md5::compute(format!("{}:{}", prefix, address)).to_hex();
             let digest = &hash[0..16];
-            id_vec.push((tag, &self.clusters.parent[*tag], &address, digest.to_string()));
+            id_vec.push((tag, &clusters.parent[*tag], &address, digest.to_string()));
         }
         id_vec.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
 
         let mut pos = 0;
         let mut prev_tag = 0;
-        let mut cache: Vec<(usize, Address, String)> = Default::default();
+        let mut cache: Vec<(&usize, Address, String)> = Default::default();
+        let mut newparent: Vec<usize> = Vec::new();
         for (_, tag, address, dig) in id_vec {
             if *tag != prev_tag {
                 cache.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
@@ -88,17 +93,19 @@ impl Clusters {
                 let (_, raddress, rdigest) = cache.pop().unwrap();
                 self.writer
                     .write(&format!("{},{},{}\n", pos, raddress, rdigest).as_bytes())
-                    .expect("Unable to write nodes file!");
+                    .expect("Unable to write to output file!");
+                newparent.push(pos as usize);
 
                 for (_, raddress, _) in &cache {
                     self.writer
                         .write(&format!("{},{},{}\n", pos, raddress, rdigest).as_bytes())
-                        .expect("Unable to write nodes file!");
+                        .expect("Unable to write to output file!");
+                    newparent.push(pos as usize);
                 }
                 pos = pos + 1;
                 cache.clear();
             }
-            cache.push((tag.clone(), address.clone(), dig.clone()));
+            cache.push((tag, address.clone(), dig.clone()));
             prev_tag = *tag;
         }
     }

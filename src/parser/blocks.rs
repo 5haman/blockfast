@@ -1,10 +1,16 @@
 use crossbeam_channel::Sender;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 use blockchain::block::Block;
 use blockchain::hash::{Hash, ZERO_HASH};
 use parser::blockchain::Blockchain;
-use parser::BlockMessage;
+use parser::ParseError;
+
+pub enum BlockMessage<'a> {
+    OnBlock(Block<'a>),
+    OnComplete(bool),
+    OnError(ParseError),
+}
 
 pub struct Blocks<'a> {
     tx: Sender<BlockMessage<'a>>,
@@ -32,7 +38,9 @@ impl<'a> Blocks<'a> {
             );
             while mmap_slice.len() > 0 {
                 if skipped.contains_key(&goal_prev_hash) {
-                    self.tx.send(BlockMessage::OnBlock(last_block.unwrap())).unwrap();
+                    self.tx
+                        .send(BlockMessage::OnBlock(last_block.unwrap()))
+                        .unwrap();
                     height += 1;
                     while let Some(block) = skipped.remove(&goal_prev_hash) {
                         self.tx.send(BlockMessage::OnBlock(block)).unwrap();
