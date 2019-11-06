@@ -1,24 +1,24 @@
-TARGET=musl
+NAME=blockfast
 
 .PHONY: test
 
-default: build
+default: debug
 
 release:
-	cargo build --release --target=x86_64-unknown-linux-$(TARGET)
-	strip ./target/x86_64-unknown-linux-$(TARGET)/release/parser
+	cargo build --release
+	strip ./target/release/$(NAME)
 
 debug:
-	cargo build --debug --target=x86_64-unknown-linux-$(TARGET)
+	cargo build
 
 build:
 	cargo build --release
 
 test:
-	time -l target/release/blockfast -b test/blocks
+	RUST_BACKTRACE=full time -l target/debug/$(NAME) -b test/blocks
 
 install:
-	cp ./target/x86_64-unknown-linux-$(TARGET)/release/parser /usr/bin/parser
+	cp ./target/release/$(NAME) /usr/local/bin/$(NAME)
 
 init:
 	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile default --default-toolchain default
