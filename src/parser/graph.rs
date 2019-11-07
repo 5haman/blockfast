@@ -1,11 +1,11 @@
 use crossbeam_channel::Receiver;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{LineWriter, Write};
 
 use blockchain::address::Address;
-use parser::disjoint::DisjointSet;
+//use disjoint_sets::UnionFind;
+use disjoint_sets::UnionFind;
 use parser::transactions::TransactionMessage;
 use parser::Config;
 
@@ -31,7 +31,7 @@ impl Graph {
         }
     }
 
-    pub fn run(&mut self, clusters: &mut DisjointSet<Address>) {
+    pub fn run(&mut self, clusters: &mut UnionFind, addresses: &mut HashMap<Address, u32>) {
         let mut done = false;
         let mut uniq: HashMap<String, bool> = HashMap::new();
 
@@ -40,7 +40,7 @@ impl Graph {
                 match self.rx.recv() {
                     Ok(msg) => match msg {
                         TransactionMessage::OnTransaction(mut tx_item) => {
-                            self.on_transaction(&mut tx_item, clusters, &mut uniq);
+                            self.on_transaction(&mut tx_item, clusters, &mut uniq, addresses);
                         }
                         TransactionMessage::OnComplete(_) => {
                             done = true;
@@ -63,8 +63,9 @@ impl Graph {
     fn on_transaction(
         &mut self,
         tx_item: &mut Vec<HashSet<Address>>,
-        clusters: &mut DisjointSet<Address>,
+        clusters: &mut UnionFind,
         uniq: &mut HashMap<String, bool>,
+        addresses: &mut HashMap<Address, u32>,
     ) {
         let outputs = tx_item.pop().unwrap();
         let inputs = tx_item.pop().unwrap();
@@ -72,14 +73,20 @@ impl Graph {
             for src in inputs.iter() {
                 for dst in outputs.iter() {
                     if src != dst {
-                        let src_id = match clusters.map.get(src) {
-                            Some(src_id) => src_id,
+                        let src_id = match addresses.get(src) {
+                            Some(src_id) => {
+                                let id = *src_id;
+                                clusters.find(id as usize)
+                            }
                             None => {
                                 continue;
                             }
                         };
-                        let dst_id = match clusters.map.get(dst) {
-                            Some(dst_id) => dst_id,
+                        let dst_id = match addresses.get(dst) {
+                            Some(dst_id) => {
+                                let id = *dst_id;
+                                clusters.find(id as usize)
+                            }
                             None => {
                                 continue;
                             }
@@ -91,11 +98,11 @@ impl Graph {
                                     self.edges = self.edges + 1;
                                 }
                             }
-                            if self.max_src < *src_id {
-                                self.max_src = *src_id;
+                            if self.max_src < src_id {
+                                self.max_src = src_id;
                             }
-                            if self.max_dst < *dst_id {
-                                self.max_dst = *dst_id;
+                            if self.max_dst < dst_id {
+                                self.max_dst = dst_id;
                             }
                         }
                     }

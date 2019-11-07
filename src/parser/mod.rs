@@ -1,20 +1,22 @@
 use clap::{App, Arg};
 use crossbeam_channel::bounded;
 use crossbeam_utils::thread;
+use std::collections::HashMap;
 use std::result;
 
 use blockchain::address::Address;
 use parser::blockchain::Blockchain;
 use parser::blocks::Blocks;
 use parser::clusters::Clusters;
-use parser::disjoint::DisjointSet;
+//use disjoint_sets::UnionFind;
+use disjoint_sets::UnionFind;
 use parser::graph::Graph;
 use parser::transactions::Transactions;
 
 pub mod blockchain;
 pub mod blocks;
 pub mod clusters;
-pub mod disjoint;
+//pub mod disjoint;
 pub mod graph;
 pub mod transactions;
 
@@ -110,7 +112,12 @@ impl Config {
     }
 }
 
-pub fn run(config: &Config, clusters: &mut DisjointSet<Address>) {
+pub fn run(
+    config: &Config,
+    clusters: &mut UnionFind,
+    addresses: &mut HashMap<Address, u32>,
+    iter: u8,
+) {
     let blockchain: Blockchain = Blockchain::new(&config.blocks_dir, config.max_block);
     let (block_out, block_in) = bounded(config.queue_size);
     let (tx_out, tx_in) = bounded(config.queue_size);
@@ -126,17 +133,17 @@ pub fn run(config: &Config, clusters: &mut DisjointSet<Address>) {
             t.run();
         });
 
-        if clusters.map.len() == 0 {
+        if iter == 0 {
             info!("Processing clusters...");
             let _ = scope.spawn(|_| {
                 let mut c = Clusters::new(tx_in, config);
-                c.run(clusters);
+                c.run(clusters, addresses);
             });
         } else {
             info!("Processing graph...");
             let _ = scope.spawn(|_| {
                 let mut g = Graph::new(tx_in, config);
-                g.run(clusters);
+                g.run(clusters, addresses);
             });
             return;
         }

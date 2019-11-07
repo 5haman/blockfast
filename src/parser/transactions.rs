@@ -35,6 +35,7 @@ impl<'a> Transactions<'a> {
                         BlockMessage::OnBlock(block) => {
                             let transactions = block.transactions();
                             let mut slice = transactions.slice;
+
                             for _ in 0..transactions.count {
                                 if slice.len() > 0 {
                                     let mut inputs = HashSet::<Address>::new();
@@ -50,6 +51,7 @@ impl<'a> Transactions<'a> {
                                         Ok(ok) => {
                                             if ok {
                                                 let mut tx_msg = Vec::new();
+
                                                 tx_msg.push(inputs);
                                                 tx_msg.push(outputs);
                                                 self.tx
