@@ -5,18 +5,17 @@ use std::collections::HashMap;
 use std::result;
 
 use blockchain::address::Address;
+use parser::disjoint::UnionFind;
 use parser::blockchain::Blockchain;
 use parser::blocks::Blocks;
 use parser::clusters::Clusters;
-//use disjoint_sets::UnionFind;
-use disjoint_sets::UnionFind;
 use parser::graph::Graph;
 use parser::transactions::Transactions;
 
 pub mod blockchain;
 pub mod blocks;
 pub mod clusters;
-//pub mod disjoint;
+pub mod disjoint;
 pub mod graph;
 pub mod transactions;
 
@@ -112,12 +111,7 @@ impl Config {
     }
 }
 
-pub fn run(
-    config: &Config,
-    clusters: &mut UnionFind,
-    addresses: &mut HashMap<Address, u32>,
-    iter: u8,
-) {
+pub fn run(config: &Config, clusters: &mut UnionFind, addresses: &mut HashMap<Address, u32>) {
     let blockchain: Blockchain = Blockchain::new(&config.blocks_dir, config.max_block);
     let (block_out, block_in) = bounded(config.queue_size);
     let (tx_out, tx_in) = bounded(config.queue_size);
@@ -133,7 +127,7 @@ pub fn run(
             t.run();
         });
 
-        if iter == 0 {
+        if addresses.len() == 0 {
             info!("Processing clusters...");
             let _ = scope.spawn(|_| {
                 let mut c = Clusters::new(tx_in, config);

@@ -1,12 +1,13 @@
 use crossbeam_channel::Receiver;
+use crypto::digest::Digest;
+use crypto::md5::Md5;
 use rustc_serialize::hex::ToHex;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{LineWriter, Write};
 
 use blockchain::address::Address;
-//use disjoint_sets::UnionFind;
-use disjoint_sets::UnionFind;
+use parser::disjoint::UnionFind;
 use parser::transactions::TransactionMessage;
 use parser::Config;
 
@@ -58,7 +59,7 @@ impl Clusters {
         &mut self,
         tx_item: &Vec<HashSet<Address>>,
         clusters: &mut UnionFind,
-        addresses: &mut HashMap<Address, u32>, //clusters: &mut UnionFind,
+        addresses: &mut HashMap<Address, u32>,
     ) {
         let inputs = tx_item.first().unwrap();
 
@@ -94,7 +95,7 @@ impl Clusters {
     }
 
     fn done(&mut self, clusters: &mut UnionFind, addresses: &mut HashMap<Address, u32>) {
-        clusters.force();
+        clusters.force(addresses.len() as usize);
 
         let prefix = "kyblsoft.cz".to_string();
         let mut id_vec: Vec<(u32, u32, &Address)> = Default::default();
@@ -106,31 +107,37 @@ impl Clusters {
 
         let mut pos = 0;
         let mut prev_tag = 1;
-        let mut cache: Vec<(u32, &Address, String)> = Default::default();
+        let mut cache: Vec<(u32, &Address, [u8; 32])> = Default::default();
         let mut newparent: Vec<u32> = Vec::new();
+
         for (_, tag, address) in id_vec {
             if tag != prev_tag {
                 cache.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
 
                 let (_, raddress, rdigest) = cache.pop().unwrap();
+                let dgs = array_ref!(rdigest, 0, 8);
 
                 self.writer
-                    .write(&format!("{},{},{}\n", pos, raddress, rdigest).as_bytes())
+                    .write(&format!("{},{},{}\n", pos, raddress, dgs.to_hex()).as_bytes())
                     .expect("Unable to write to output file!");
                 newparent.push(pos as u32);
 
                 for (_, raddress, _) in &cache {
+                    let dgs = array_ref!(rdigest, 0, 8);
                     self.writer
-                        .write(&format!("{},{},{}\n", pos, raddress, rdigest).as_bytes())
+                        .write(&format!("{},{},{}\n", pos, raddress, dgs.to_hex()).as_bytes())
                         .expect("Unable to write to output file!");
                     newparent.push(pos as u32);
                 }
                 pos = pos + 1;
                 cache.clear();
             }
-            let hash = md5::compute(format!("{}:{}", prefix, address)).to_hex();
-            let digest = &hash[0..16];
-            cache.push((tag, &address, digest.to_string()));
+            let mut hasher = Md5::new();
+            let mut out = [0u8; 32];
+            hasher.input(format!("{}:{}", prefix, address).as_bytes());
+            hasher.result(&mut out);
+
+            cache.push((tag, &address, out));
             prev_tag = tag;
         }
     }

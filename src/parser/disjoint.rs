@@ -1,5 +1,7 @@
+use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+/// Lock-free, concurrent union-find representing a set of disjoint sets.
 #[derive(Clone)]
 pub struct UnionFind(Box<[Entry]>);
 
@@ -41,6 +43,7 @@ impl UnionFind {
     pub fn new(size: usize) -> Self {
         UnionFind(
             (0..size)
+                .into_par_iter()
                 .map(Entry::new)
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
@@ -124,8 +127,19 @@ impl UnionFind {
 
     /// Forces all laziness, so that each element points directly to its
     /// set’s representative.
-    pub fn force(&self) {
-        for i in 0..self.len() {
+    pub fn force(&self, count: usize) {
+        /*
+        let _ = (0..count)
+            .into_par_iter()
+            //.enumerate()
+            .inspect(|pos| {
+                */
+        for i in 0..count {
+            //let i = pos;
+            if i % 100000 == 0 {
+                info!("Processed {} addresses", i);
+            }
+
             loop {
                 let parent = self.parent(i);
                 if i == parent {
@@ -138,15 +152,6 @@ impl UnionFind {
                 }
             }
         }
-    }
-
-    /// Returns a vector of set representatives.
-    pub fn to_vec(&self) -> Vec<usize> {
-        self.force();
-        self.0
-            .iter()
-            .map(|entry| entry.id.load(Ordering::SeqCst))
-            .collect()
     }
 
     // HELPERS

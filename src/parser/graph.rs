@@ -4,8 +4,7 @@ use std::fs::File;
 use std::io::{LineWriter, Write};
 
 use blockchain::address::Address;
-//use disjoint_sets::UnionFind;
-use disjoint_sets::UnionFind;
+use parser::disjoint::UnionFind;
 use parser::transactions::TransactionMessage;
 use parser::Config;
 
