@@ -106,8 +106,10 @@ impl Transaction {
                         .map(|pk| Address::from_pubkey(pk, 0x05))
                         .collect(),
                 ),
+                /*
                 ScriptType::WitnessScriptHash(w) => Some(vec![Address::from_witness_script(w)]),
                 ScriptType::WitnessPubkeyHash(w) => Some(vec![Address::from_witness_pubkey(w)]),
+                */
                 _ => None,
             };
 

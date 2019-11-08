@@ -61,7 +61,7 @@ impl Clusters {
     ) {
         let inputs = tx_item.first().unwrap();
 
-        if inputs.len() > 0 {
+        if inputs.len() > 1 {
             let mut tx_inputs_iter = inputs.iter();
             let mut last_address = tx_inputs_iter.next().unwrap();
 
