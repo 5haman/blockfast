@@ -5,6 +5,7 @@ extern crate arrayref;
 extern crate log;
 extern crate colog;
 
+extern crate advanced_collections;
 extern crate base58;
 extern crate bitcoin_bech32;
 extern crate byteorder;
@@ -13,33 +14,31 @@ extern crate crossbeam_channel;
 extern crate crossbeam_utils;
 extern crate crypto;
 extern crate dirs;
+extern crate hash_hasher;
 extern crate memmap;
-extern crate rayon;
 extern crate rustc_serialize;
 extern crate time;
 extern crate vec_map;
 
+use hash_hasher::HashBuildHasher;
+use std::io::Write;
+
 pub mod blockchain;
 pub mod parser;
 
-use std::collections::HashMap;
-use std::io::Write;
-
 use blockchain::address::Address;
-use parser::disjoint::UnionFind;
+use parser::union::UnionFind;
 use parser::Config;
-
-const MAX_CLUSTERS: usize = 10_000_000;
 
 fn main() {
     let config = init();
 
     info!("Starting blockchain parser...");
 
-    let mut addresses: HashMap<Address, u32> = HashMap::with_capacity(MAX_CLUSTERS);
-    let mut clusters = UnionFind::new(MAX_CLUSTERS);
-    parser::run(&config, &mut clusters, &mut addresses);
-    parser::run(&config, &mut clusters, &mut addresses);
+    let mut clusters: UnionFind<Address, HashBuildHasher> =
+        UnionFind::with_hasher(HashBuildHasher::default());
+    parser::run(&config, &mut clusters);
+    parser::run(&config, &mut clusters);
 
     info!("Finished succesfully");
 }

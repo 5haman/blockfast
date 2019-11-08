@@ -1,11 +1,12 @@
 use crossbeam_channel::Receiver;
+use hash_hasher::HashBuildHasher;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{LineWriter, Write};
 
 use blockchain::address::Address;
-use parser::disjoint::UnionFind;
 use parser::transactions::TransactionMessage;
+use parser::union::UnionFind;
 use parser::Config;
 
 pub struct Graph {
@@ -30,7 +31,7 @@ impl Graph {
         }
     }
 
-    pub fn run(&mut self, clusters: &mut UnionFind, addresses: &mut HashMap<Address, u32>) {
+    pub fn run(&mut self, clusters: &mut UnionFind<Address, HashBuildHasher>) {
         let mut done = false;
         let mut uniq: HashMap<String, bool> = HashMap::new();
 
@@ -39,7 +40,7 @@ impl Graph {
                 match self.rx.recv() {
                     Ok(msg) => match msg {
                         TransactionMessage::OnTransaction(mut tx_item) => {
-                            self.on_transaction(&mut tx_item, clusters, &mut uniq, addresses);
+                            self.on_transaction(&mut tx_item, clusters, &mut uniq);
                         }
                         TransactionMessage::OnComplete(_) => {
                             done = true;
@@ -62,9 +63,8 @@ impl Graph {
     fn on_transaction(
         &mut self,
         tx_item: &mut Vec<HashSet<Address>>,
-        clusters: &mut UnionFind,
+        clusters: &mut UnionFind<Address, HashBuildHasher>,
         uniq: &mut HashMap<String, bool>,
-        addresses: &mut HashMap<Address, u32>,
     ) {
         let outputs = tx_item.pop().unwrap();
         let inputs = tx_item.pop().unwrap();
@@ -72,20 +72,14 @@ impl Graph {
             for src in inputs.iter() {
                 for dst in outputs.iter() {
                     if src != dst {
-                        let src_id = match addresses.get(src) {
-                            Some(src_id) => {
-                                let id = *src_id;
-                                clusters.find(id as usize)
-                            }
+                        let src_id = match clusters.ids.get(&src) {
+                            Some(src_id) => *src_id as usize,
                             None => {
                                 continue;
                             }
                         };
-                        let dst_id = match addresses.get(dst) {
-                            Some(dst_id) => {
-                                let id = *dst_id;
-                                clusters.find(id as usize)
-                            }
+                        let dst_id = match clusters.ids.get(dst) {
+                            Some(dst_id) => *dst_id as usize,
                             None => {
                                 continue;
                             }

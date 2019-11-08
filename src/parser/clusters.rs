@@ -1,20 +1,20 @@
 use crossbeam_channel::Receiver;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
+use hash_hasher::HashBuildHasher;
 use rustc_serialize::hex::ToHex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{LineWriter, Write};
 
 use blockchain::address::Address;
-use parser::disjoint::UnionFind;
 use parser::transactions::TransactionMessage;
+use parser::union::UnionFind;
 use parser::Config;
 
 pub struct Clusters {
     rx: Receiver<TransactionMessage>,
     writer: LineWriter<File>,
-    id: u32,
 }
 
 impl Clusters {
@@ -24,18 +24,17 @@ impl Clusters {
         Self {
             writer: writer,
             rx: rx.clone(),
-            id: 0,
         }
     }
 
-    pub fn run(&mut self, clusters: &mut UnionFind, addresses: &mut HashMap<Address, u32>) {
+    pub fn run(&mut self, clusters: &mut UnionFind<Address, HashBuildHasher>) {
         let mut done = false;
         loop {
             if !self.rx.is_empty() {
                 match self.rx.recv() {
                     Ok(msg) => match msg {
                         TransactionMessage::OnTransaction(tx_item) => {
-                            self.on_transaction(&tx_item, clusters, addresses);
+                            self.on_transaction(&tx_item, clusters);
                         }
                         TransactionMessage::OnComplete(_) => {
                             done = true;
@@ -49,7 +48,7 @@ impl Clusters {
                     }
                 }
             } else if done {
-                self.done(clusters, addresses);
+                self.done(clusters);
                 return;
             }
         }
@@ -58,87 +57,67 @@ impl Clusters {
     fn on_transaction(
         &mut self,
         tx_item: &Vec<HashSet<Address>>,
-        clusters: &mut UnionFind,
-        addresses: &mut HashMap<Address, u32>,
+        clusters: &mut UnionFind<Address, HashBuildHasher>,
     ) {
         let inputs = tx_item.first().unwrap();
 
         if inputs.len() > 0 {
             let mut tx_inputs_iter = inputs.iter();
-            let last_address = tx_inputs_iter.next().unwrap();
+            let mut last_address = tx_inputs_iter.next().unwrap();
 
-            let mut last_id = match addresses.insert(last_address.to_owned(), self.id) {
-                Some(id) => (id),
-                None => {
-                    let id = self.id;
-                    self.id = self.id + 1;
-                    id
-                }
-            };
+            if !clusters.contains(&last_address.to_owned()) {
+                clusters.make_set(last_address.to_owned());
+            }
 
             for address in tx_inputs_iter {
-                let id = match addresses.insert(address.to_owned(), self.id) {
-                    Some(id) => (id),
-                    None => {
-                        let id = self.id;
-                        self.id = self.id + 1;
-                        id
-                    }
-                };
-
-                if id != last_id {
-                    clusters.union(last_id as usize, id as usize);
+                if !clusters.contains(&address.to_owned()) {
+                    clusters.make_set(address.to_owned());
                 }
-                last_id = id;
+                clusters.union(last_address.to_owned(), address.to_owned());
+                last_address = address;
             }
         }
     }
 
-    fn done(&mut self, clusters: &mut UnionFind, addresses: &mut HashMap<Address, u32>) {
-        clusters.force(addresses.len() as usize);
+    fn done(&mut self, clusters: &mut UnionFind<Address, HashBuildHasher>) {
+        info!("Done");
+        info!("Found {} addresses", clusters.len());
 
         let prefix = "kyblsoft.cz".to_string();
-        let mut id_vec: Vec<(u32, u32, &Address)> = Default::default();
-
-        for (address, tag) in addresses {
-            id_vec.push((*tag as u32, clusters.find(*tag as usize) as u32, &address));
-        }
-        id_vec.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
+        let mut cache: Vec<(Address, [u8; 32])> = Default::default();
         let mut pos = 0;
-        let mut prev_tag = 1;
-        let mut cache: Vec<(u32, &Address, [u8; 32])> = Default::default();
-        let mut newparent: Vec<u32> = Vec::new();
+        let mut count = 0;
 
-        for (_, tag, address) in id_vec {
-            if tag != prev_tag {
-                cache.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
-
-                let (_, raddress, rdigest) = cache.pop().unwrap();
-                let dgs = array_ref!(rdigest, 0, 8);
-
-                self.writer
-                    .write(&format!("{},{},{}\n", pos, raddress, dgs.to_hex()).as_bytes())
-                    .expect("Unable to write to output file!");
-                newparent.push(pos as u32);
-
-                for (_, raddress, _) in &cache {
-                    let dgs = array_ref!(rdigest, 0, 8);
-                    self.writer
-                        .write(&format!("{},{},{}\n", pos, raddress, dgs.to_hex()).as_bytes())
-                        .expect("Unable to write to output file!");
-                    newparent.push(pos as u32);
-                }
-                pos = pos + 1;
-                cache.clear();
+        for set in clusters.into_iter() {
+            if count % 1000000 == 0 && count != 0 {
+                info!("Processed {} addresses, {} clusters", count, pos);
             }
-            let mut hasher = Md5::new();
-            let mut out = [0u8; 32];
-            hasher.input(format!("{}:{}", prefix, address).as_bytes());
-            hasher.result(&mut out);
 
-            cache.push((tag, &address, out));
-            prev_tag = tag;
+            for address in set.into_iter() {
+                let mut hasher = Md5::new();
+                let mut hash = [0u8; 32];
+                hasher.input(format!("{}:{}", prefix, address).as_bytes());
+                hasher.result(&mut hash);
+                cache.push((*address, hash));
+                count = count + 1;
+            }
+            cache.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+            let (address, hash) = cache.pop().unwrap();
+            let digest = array_ref!(hash, 0, 8);
+            self.writer
+                .write(&format!("{},{},{}\n", pos, address, digest.to_hex()).as_bytes())
+                .expect("Unable to write to output file!");
+
+            for (address, _) in &cache {
+                self.writer
+                    .write(&format!("{},{},{}\n", pos, address, digest.to_hex()).as_bytes())
+                    .expect("Unable to write to output file!");
+            }
+            pos = pos + 1;
+            cache.clear();
         }
+        info!("Done");
+        info!("Found {} clusters", pos);
     }
 }

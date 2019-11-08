@@ -16,7 +16,7 @@ impl Blockchain {
             unsafe {
                 match File::open(blocks_dir_path.join(format!("blk{:05}.dat", n))) {
                     Ok(f) => {
-                        if n > max_block {
+                        if max_block != 0 && n > max_block {
                             break;
                         }
                         n += 1;
