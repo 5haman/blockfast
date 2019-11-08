@@ -76,9 +76,10 @@ impl Transaction {
             match output_item {
                 Some(address) => {
                     for n in 0..address.len() {
-                        let addr = &address[n];
+                        //let addr = &address[n];
                         //transaction_item.insert(*addr);
-                        inputs.insert(*addr);
+                        //let a = *addr;
+                        &inputs.insert(address[n].clone());
                     }
                 }
                 None => {}

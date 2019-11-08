@@ -98,7 +98,7 @@ impl Clusters {
                 let mut hash = [0u8; 32];
                 hasher.input(format!("{}:{}", prefix, address).as_bytes());
                 hasher.result(&mut hash);
-                cache.push((*address, hash));
+                cache.push((address.clone(), hash));
                 count = count + 1;
             }
             cache.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
