@@ -1,4 +1,5 @@
 use crossbeam_channel::{Receiver, Sender};
+use fasthash::{xx, RandomState};
 use std::collections::{HashMap, HashSet};
 use vec_map::VecMap;
 
@@ -26,8 +27,8 @@ impl<'a> Transactions<'a> {
 
     pub fn run(&self) {
         let mut done = false;
-        let mut output_items: HashMap<Hash, VecMap<Vec<Address>>> =
-            HashMap::with_capacity(1_000_000);
+        let mut output_items: HashMap<Hash, VecMap<Vec<Address>>, RandomState<xx::Hash64>> =
+            HashMap::with_capacity_and_hasher(1_000_000, RandomState::<xx::Hash64>::new());
 
         loop {
             if !self.rx.is_empty() {

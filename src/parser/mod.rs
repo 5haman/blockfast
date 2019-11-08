@@ -1,6 +1,7 @@
 use clap::{App, Arg};
 use crossbeam_channel::bounded;
 use crossbeam_utils::thread;
+use fasthash::{xx, RandomState};
 use std::result;
 
 use blockchain::address::Address;
@@ -113,7 +114,7 @@ impl Config {
     }
 }
 
-pub fn run(config: &Config, clusters: &mut UnionFind<Address>) {
+pub fn run(config: &Config, clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>) {
     let blockchain: Blockchain = Blockchain::new(&config.blocks_dir, config.max_block);
     let (block_out, block_in) = bounded(2);
     let (tx_out, tx_in) = bounded(config.queue_size);

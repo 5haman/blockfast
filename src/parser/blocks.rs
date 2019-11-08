@@ -1,4 +1,5 @@
 use crossbeam_channel::Sender;
+use fasthash::{xx, RandomState};
 use std::collections::HashMap;
 
 use blockchain::block::Block;
@@ -22,7 +23,8 @@ impl<'a> Blocks<'a> {
     }
 
     pub fn run(&mut self, blockchain: &'a Blockchain) {
-        let mut skipped: HashMap<Hash, Block> = HashMap::with_capacity(100);
+        let mut skipped: HashMap<Hash, Block, RandomState<xx::Hash64>> =
+            HashMap::with_capacity_and_hasher(100, RandomState::<xx::Hash64>::new());
         let mut goal_prev_hash: Hash = ZERO_HASH;
         let mut last_block: Option<Block> = None;
         let mut height = 0;

@@ -1,5 +1,8 @@
+use bitcoin_bech32::constants::Network;
+use bitcoin_bech32::WitnessProgram;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
+use fasthash::{xx, RandomState};
 use std::collections::hash_map::Entry as HashEntry;
 use std::collections::{HashMap, HashSet};
 use vec_map::VecMap;
@@ -31,7 +34,7 @@ impl Transaction {
     pub fn read(
         slice: &mut &[u8],
         timestamp: u32,
-        output_items: &mut HashMap<Hash, VecMap<Vec<Address>>>,
+        output_items: &mut HashMap<Hash, VecMap<Vec<Address>>, RandomState<xx::Hash64>>,
         inputs: &mut HashSet<Address>,
         outputs: &mut HashSet<Address>,
     ) -> Result<bool> {
@@ -76,8 +79,7 @@ impl Transaction {
             match output_item {
                 Some(address) => {
                     for n in 0..address.len() {
-                        let addr = &address[n];
-                        inputs.insert(*addr);
+                        inputs.insert(address[n].clone());
                     }
                 }
                 None => {}
@@ -105,8 +107,20 @@ impl Transaction {
                         .map(|pk| Address::from_pubkey(pk, 0x05))
                         .collect(),
                 ),
-                ScriptType::WitnessScriptHash(w) => Some(vec![Address::from_witness_script(w)]),
-                ScriptType::WitnessPubkeyHash(w) => Some(vec![Address::from_witness_pubkey(w)]),
+                ScriptType::WitnessScriptHash(w) => Some(vec![Address {
+                    addr: WitnessProgram::from_scriptpubkey(w, Network::Bitcoin)
+                        .unwrap()
+                        .to_address()
+                        .as_bytes()
+                        .to_vec(),
+                }]),
+                ScriptType::WitnessPubkeyHash(w) => Some(vec![Address {
+                    addr: WitnessProgram::from_scriptpubkey(w, Network::Bitcoin)
+                        .unwrap()
+                        .to_address()
+                        .as_bytes()
+                        .to_vec(),
+                }]),
                 _ => None,
             };
 

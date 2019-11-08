@@ -1,4 +1,5 @@
 use crossbeam_channel::Receiver;
+use fasthash::{xx, RandomState};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{LineWriter, Write};
@@ -30,9 +31,10 @@ impl Graph {
         }
     }
 
-    pub fn run(&mut self, clusters: &mut UnionFind<Address>) {
+    pub fn run(&mut self, clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>) {
         let mut done = false;
-        let mut uniq: HashMap<String, bool> = HashMap::new();
+        let mut uniq: HashMap<String, bool, RandomState<xx::Hash64>> =
+            HashMap::with_capacity_and_hasher(1_000_000, RandomState::<xx::Hash64>::new());
 
         loop {
             if !self.rx.is_empty() {
@@ -62,8 +64,8 @@ impl Graph {
     fn on_transaction(
         &mut self,
         tx_item: &mut Vec<HashSet<Address>>,
-        clusters: &mut UnionFind<Address>,
-        uniq: &mut HashMap<String, bool>,
+        clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>,
+        uniq: &mut HashMap<String, bool, RandomState<xx::Hash64>>,
     ) {
         let outputs = tx_item.pop().unwrap();
         let inputs = tx_item.pop().unwrap();
@@ -103,7 +105,7 @@ impl Graph {
         }
     }
 
-    fn done(&mut self, uniq: &HashMap<String, bool>) {
+    fn done(&mut self, uniq: &HashMap<String, bool, RandomState<xx::Hash64>>) {
         self.writer
             .write(&format!("{} {} {}\n", self.max_src, self.max_dst, self.edges).as_bytes())
             .expect("Unable to write to output file!");

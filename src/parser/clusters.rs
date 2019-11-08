@@ -1,6 +1,7 @@
 use crossbeam_channel::Receiver;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
+use fasthash::{xx, RandomState};
 use rustc_serialize::hex::ToHex;
 use std::collections::HashSet;
 use std::fs::File;
@@ -26,14 +27,14 @@ impl Clusters {
         }
     }
 
-    pub fn run(&mut self, clusters: &mut UnionFind<Address>) {
+    pub fn run(&mut self, clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>) {
         let mut done = false;
         loop {
             if !self.rx.is_empty() {
                 match self.rx.recv() {
                     Ok(msg) => match msg {
-                        TransactionMessage::OnTransaction(tx_item) => {
-                            self.on_transaction(&tx_item, clusters);
+                        TransactionMessage::OnTransaction(mut tx_item) => {
+                            self.on_transaction(&mut tx_item, clusters);
                         }
                         TransactionMessage::OnComplete(_) => {
                             done = true;
@@ -55,10 +56,11 @@ impl Clusters {
 
     fn on_transaction(
         &mut self,
-        tx_item: &Vec<HashSet<Address>>,
-        clusters: &mut UnionFind<Address>,
+        tx_item: &mut Vec<HashSet<Address>>,
+        clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>,
     ) {
-        let inputs = tx_item.first().unwrap();
+        let outputs = tx_item.pop().unwrap();
+        let inputs = tx_item.pop().unwrap();
 
         if inputs.len() > 0 {
             let mut tx_inputs_iter = inputs.iter();
@@ -72,13 +74,16 @@ impl Clusters {
                 if !clusters.contains(&address.to_owned()) {
                     clusters.make_set(address.to_owned());
                 }
-                clusters.union(last_address.to_owned(), address.to_owned());
+
+                if outputs.len() == 1 {
+                    clusters.union(last_address.to_owned(), address.to_owned());
+                }
                 last_address = address;
             }
         }
     }
 
-    fn done(&mut self, clusters: &mut UnionFind<Address>) {
+    fn done(&mut self, clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>) {
         info!("Done");
         info!("Found {} addresses", clusters.len());
 
@@ -97,7 +102,7 @@ impl Clusters {
                 let mut hash = [0u8; 32];
                 hasher.input(format!("{}:{}", prefix, address).as_bytes());
                 hasher.result(&mut hash);
-                cache.push((*address, hash));
+                cache.push((address.clone(), hash));
                 count = count + 1;
             }
             cache.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());

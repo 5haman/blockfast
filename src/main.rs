@@ -14,11 +14,13 @@ extern crate crossbeam_channel;
 extern crate crossbeam_utils;
 extern crate crypto;
 extern crate dirs;
+extern crate fasthash;
 extern crate memmap;
 extern crate rustc_serialize;
 extern crate time;
 extern crate vec_map;
 
+use fasthash::{xx, RandomState};
 use std::io::Write;
 
 pub mod blockchain;
@@ -33,7 +35,8 @@ fn main() {
 
     info!("Starting blockchain parser...");
 
-    let mut clusters: UnionFind<Address> = UnionFind::with_capacity(10_000_000);
+    let mut clusters: UnionFind<Address, RandomState<xx::Hash64>> =
+        UnionFind::with_capacity_and_hasher(1_000_000, RandomState::<xx::Hash64>::new());
 
     parser::run(&config, &mut clusters);
     parser::run(&config, &mut clusters);
