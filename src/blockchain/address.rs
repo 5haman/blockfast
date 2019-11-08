@@ -1,7 +1,7 @@
 use base58::ToBase58;
-use bitcoin_bech32::constants::Network;
-use bitcoin_bech32::WitnessProgram;
-use std::{fmt, hash, mem};
+//use bitcoin_bech32::constants::Network;
+//use bitcoin_bech32::WitnessProgram;
+use std::{fmt, hash};
 
 use blockchain::hash::Hash;
 use blockchain::hash160::Hash160;
