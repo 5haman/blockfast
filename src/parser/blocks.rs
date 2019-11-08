@@ -22,7 +22,7 @@ impl<'a> Blocks<'a> {
     }
 
     pub fn run(&mut self, blockchain: &'a Blockchain) {
-        let mut skipped: HashMap<Hash, Block> = HashMap::default();
+        let mut skipped: HashMap<Hash, Block> = HashMap::with_capacity(100);
         let mut goal_prev_hash: Hash = ZERO_HASH;
         let mut last_block: Option<Block> = None;
         let mut height = 0;

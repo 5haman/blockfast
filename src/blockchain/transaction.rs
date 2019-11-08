@@ -76,10 +76,8 @@ impl Transaction {
             match output_item {
                 Some(address) => {
                     for n in 0..address.len() {
-                        //let addr = &address[n];
-                        //transaction_item.insert(*addr);
-                        //let a = *addr;
-                        &inputs.insert(address[n].clone());
+                        let addr = &address[n];
+                        inputs.insert(*addr);
                     }
                 }
                 None => {}
@@ -107,10 +105,8 @@ impl Transaction {
                         .map(|pk| Address::from_pubkey(pk, 0x05))
                         .collect(),
                 ),
-                /*
                 ScriptType::WitnessScriptHash(w) => Some(vec![Address::from_witness_script(w)]),
                 ScriptType::WitnessPubkeyHash(w) => Some(vec![Address::from_witness_pubkey(w)]),
-                */
                 _ => None,
             };
 

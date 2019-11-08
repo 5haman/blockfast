@@ -26,7 +26,8 @@ impl<'a> Transactions<'a> {
 
     pub fn run(&self) {
         let mut done = false;
-        let mut output_items: HashMap<Hash, VecMap<Vec<Address>>> = Default::default();
+        let mut output_items: HashMap<Hash, VecMap<Vec<Address>>> =
+            HashMap::with_capacity(1_000_000);
 
         loop {
             if !self.rx.is_empty() {
@@ -38,8 +39,8 @@ impl<'a> Transactions<'a> {
 
                             for _ in 0..transactions.count {
                                 if slice.len() > 0 {
-                                    let mut inputs = HashSet::<Address>::new();
-                                    let mut outputs = HashSet::<Address>::new();
+                                    let mut inputs = HashSet::<Address>::with_capacity(100);
+                                    let mut outputs = HashSet::<Address>::with_capacity(100);
 
                                     match Transaction::read(
                                         &mut slice,

@@ -1,5 +1,4 @@
 use crossbeam_channel::Receiver;
-use hash_hasher::HashBuildHasher;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{LineWriter, Write};
@@ -31,7 +30,7 @@ impl Graph {
         }
     }
 
-    pub fn run(&mut self, clusters: &mut UnionFind<Address, HashBuildHasher>) {
+    pub fn run(&mut self, clusters: &mut UnionFind<Address>) {
         let mut done = false;
         let mut uniq: HashMap<String, bool> = HashMap::new();
 
@@ -63,7 +62,7 @@ impl Graph {
     fn on_transaction(
         &mut self,
         tx_item: &mut Vec<HashSet<Address>>,
-        clusters: &mut UnionFind<Address, HashBuildHasher>,
+        clusters: &mut UnionFind<Address>,
         uniq: &mut HashMap<String, bool>,
     ) {
         let outputs = tx_item.pop().unwrap();

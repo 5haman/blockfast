@@ -1,7 +1,6 @@
 use clap::{App, Arg};
 use crossbeam_channel::bounded;
 use crossbeam_utils::thread;
-use hash_hasher::HashBuildHasher;
 use std::result;
 
 use blockchain::address::Address;
@@ -23,7 +22,7 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const BLOCKS_DIR: &'static str = "~/.bitcoin/blocks";
 const OUTPUT: &'static str = "clusters.csv";
 const GRAPH: &'static str = "blockchain.mtx";
-const QUEUE_SIZE: usize = 10_000_000;
+const QUEUE_SIZE: usize = 1000;
 
 pub type Result<T> = result::Result<T, EofError>;
 
@@ -114,9 +113,9 @@ impl Config {
     }
 }
 
-pub fn run(config: &Config, clusters: &mut UnionFind<Address, HashBuildHasher>) {
+pub fn run(config: &Config, clusters: &mut UnionFind<Address>) {
     let blockchain: Blockchain = Blockchain::new(&config.blocks_dir, config.max_block);
-    let (block_out, block_in) = bounded(config.queue_size);
+    let (block_out, block_in) = bounded(2);
     let (tx_out, tx_in) = bounded(config.queue_size);
 
     thread::scope(|scope| {

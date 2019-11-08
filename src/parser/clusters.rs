@@ -1,7 +1,6 @@
 use crossbeam_channel::Receiver;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
-use hash_hasher::HashBuildHasher;
 use rustc_serialize::hex::ToHex;
 use std::collections::HashSet;
 use std::fs::File;
@@ -27,7 +26,7 @@ impl Clusters {
         }
     }
 
-    pub fn run(&mut self, clusters: &mut UnionFind<Address, HashBuildHasher>) {
+    pub fn run(&mut self, clusters: &mut UnionFind<Address>) {
         let mut done = false;
         loop {
             if !self.rx.is_empty() {
@@ -57,11 +56,11 @@ impl Clusters {
     fn on_transaction(
         &mut self,
         tx_item: &Vec<HashSet<Address>>,
-        clusters: &mut UnionFind<Address, HashBuildHasher>,
+        clusters: &mut UnionFind<Address>,
     ) {
         let inputs = tx_item.first().unwrap();
 
-        if inputs.len() > 1 {
+        if inputs.len() > 0 {
             let mut tx_inputs_iter = inputs.iter();
             let mut last_address = tx_inputs_iter.next().unwrap();
 
@@ -79,7 +78,7 @@ impl Clusters {
         }
     }
 
-    fn done(&mut self, clusters: &mut UnionFind<Address, HashBuildHasher>) {
+    fn done(&mut self, clusters: &mut UnionFind<Address>) {
         info!("Done");
         info!("Found {} addresses", clusters.len());
 
@@ -98,7 +97,7 @@ impl Clusters {
                 let mut hash = [0u8; 32];
                 hasher.input(format!("{}:{}", prefix, address).as_bytes());
                 hasher.result(&mut hash);
-                cache.push((address.clone(), hash));
+                cache.push((*address, hash));
                 count = count + 1;
             }
             cache.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
