@@ -12,7 +12,7 @@ impl hash::Hash for Hash160 {
     where
         H: hash::Hasher,
     {
-        hasher.write(&self.0[..]);
+        hasher.write(&self.0);
     }
 }
 

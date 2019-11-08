@@ -2,6 +2,7 @@ use base58::ToBase58;
 use bitcoin_bech32::constants::Network;
 use bitcoin_bech32::WitnessProgram;
 use std::{fmt, hash, mem};
+use rustc_serialize::hex::ToHex;
 
 use blockchain::hash::Hash;
 use blockchain::hash160::Hash160;
@@ -34,9 +35,10 @@ impl hash::Hash for Address {
     {
         match self {
             Address::Base58(address) => {
-                let v: Vec<u8> = [&[address.ver], &address.hash[..]].concat();
-                let h = Hash::from_data(&v);
-                hasher.write(&h);
+                //let v: Vec<u8> = [&[address.ver], &address.hash[..]].concat();
+                //let h = Hash::from_data(&v);
+                //let h = address.hash.to_hex().as_bytes();
+                hasher.write(address.hash.to_hex().as_bytes());
             }
             Address::WitnessScript(s) => {
                 hasher.write(s);
