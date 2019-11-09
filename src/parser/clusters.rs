@@ -33,8 +33,8 @@ impl Clusters {
             if !self.rx.is_empty() {
                 match self.rx.recv() {
                     Ok(msg) => match msg {
-                        TransactionMessage::OnTransaction(mut tx_item) => {
-                            self.on_transaction(&mut tx_item, clusters);
+                        TransactionMessage::OnTransaction((mut tx_item, mut values)) => {
+                            self.on_transaction(&mut tx_item, &mut values, clusters);
                         }
                         TransactionMessage::OnComplete(_) => {
                             done = true;
@@ -57,10 +57,36 @@ impl Clusters {
     fn on_transaction(
         &mut self,
         tx_item: &mut Vec<HashSet<Address>>,
+        values: &mut Vec<u64>,
         clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>,
     ) {
         let outputs = tx_item.pop().unwrap();
         let inputs = tx_item.pop().unwrap();
+
+        let mut is_cluster = false;
+        let output1 = &outputs.iter().next().unwrap().to_owned();
+        if outputs.len() == 2 && inputs.len() != 2 {
+            let output2 = &outputs.iter().next().unwrap().to_owned();
+
+            if !clusters.contains(&output1) && clusters.contains(&output2) {
+                let out1val = values.first().unwrap() / 100_000_000;
+                let vals = format!("{}", out1val);
+                let vec: Vec<&str> = vals.split(".").collect();
+                let len = vec.last().unwrap().len();
+
+                if len > 4 {
+                    is_cluster = true;
+                    clusters.make_set(output1.clone());
+                }
+            }
+
+            for address in inputs.iter() {
+                if address.to_owned() == *output1 || address.to_owned() == *output2 {
+                    is_cluster = false;
+                    break;
+                }
+            }
+        }
 
         if inputs.len() > 0 {
             let mut tx_inputs_iter = inputs.iter();
@@ -70,12 +96,16 @@ impl Clusters {
                 clusters.make_set(last_address.to_owned());
             }
 
+            if is_cluster {
+                clusters.union(last_address.to_owned(), output1.clone());
+            }
+
             for address in tx_inputs_iter {
                 if !clusters.contains(&address.to_owned()) {
                     clusters.make_set(address.to_owned());
                 }
 
-                if outputs.len() == 1 {
+                if outputs.len() == 1 || is_cluster {
                     clusters.union(last_address.to_owned(), address.to_owned());
                 }
                 last_address = address;

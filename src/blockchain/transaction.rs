@@ -37,6 +37,7 @@ impl Transaction {
         output_items: &mut HashMap<Hash, VecMap<Vec<Address>>, RandomState<xx::Hash64>>,
         inputs: &mut HashSet<Address>,
         outputs: &mut HashSet<Address>,
+        values: &mut Vec<u64>,
     ) -> Result<bool> {
         let mut tx_hash = [0u8; 32];
         let mut sha256_hasher1 = Sha256::new();
@@ -129,6 +130,7 @@ impl Transaction {
                 cur_output_items.insert(n as usize, output_item);
                 for addr in ins {
                     outputs.insert(addr);
+                    values.push(txout.value);
                 }
             };
         }

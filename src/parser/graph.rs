@@ -12,9 +12,6 @@ use parser::Config;
 pub struct Graph {
     rx: Receiver<TransactionMessage>,
     writer: LineWriter<File>,
-    max_src: usize,
-    max_dst: usize,
-    edges: usize,
 }
 
 impl Graph {
@@ -25,23 +22,20 @@ impl Graph {
         Self {
             writer: writer,
             rx: rx.clone(),
-            max_src: 0,
-            max_dst: 0,
-            edges: 0,
         }
     }
 
     pub fn run(&mut self, clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>) {
         let mut done = false;
-        let mut uniq: HashMap<String, bool, RandomState<xx::Hash64>> =
-            HashMap::with_capacity_and_hasher(1_000_000, RandomState::<xx::Hash64>::new());
+        //let mut uniq: HashMap<String, bool, RandomState<xx::Hash64>> =
+        //    HashMap::with_capacity_and_hasher(1_000_000, RandomState::<xx::Hash64>::new());
 
         loop {
             if !self.rx.is_empty() {
                 match self.rx.recv() {
                     Ok(msg) => match msg {
-                        TransactionMessage::OnTransaction(mut tx_item) => {
-                            self.on_transaction(&mut tx_item, clusters, &mut uniq);
+                        TransactionMessage::OnTransaction((mut tx_item, _)) => {
+                            self.on_transaction(&mut tx_item, clusters);
                         }
                         TransactionMessage::OnComplete(_) => {
                             done = true;
@@ -55,7 +49,7 @@ impl Graph {
                     }
                 }
             } else if done {
-                self.done(&uniq);
+                //self.done(&uniq);
                 return;
             }
         }
@@ -65,46 +59,55 @@ impl Graph {
         &mut self,
         tx_item: &mut Vec<HashSet<Address>>,
         clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>,
-        uniq: &mut HashMap<String, bool, RandomState<xx::Hash64>>,
+        //uniq: &mut HashMap<String, bool, RandomState<xx::Hash64>>,
     ) {
         let outputs = tx_item.pop().unwrap();
         let inputs = tx_item.pop().unwrap();
-        if inputs.len() > 0 && outputs.len() > 0 {
-            for src in inputs.iter() {
-                for dst in outputs.iter() {
-                    if src != dst {
-                        let src_id = match clusters.ids.get(&src) {
-                            Some(src_id) => *src_id as usize,
-                            None => {
-                                continue;
-                            }
-                        };
-                        let dst_id = match clusters.ids.get(dst) {
-                            Some(dst_id) => *dst_id as usize,
-                            None => {
-                                continue;
-                            }
-                        };
-                        if src_id != dst_id {
-                            match uniq.insert(format!("{} {}", src_id, dst_id), true) {
-                                Some(_) => {}
-                                None => {
-                                    self.edges = self.edges + 1;
-                                }
-                            }
-                            if self.max_src < src_id {
-                                self.max_src = src_id;
-                            }
-                            if self.max_dst < dst_id {
-                                self.max_dst = dst_id;
-                            }
-                        }
-                    }
+
+        if inputs.len() == 0 || outputs.len() == 0 {
+            return;
+        }
+
+        let mut inputs_map: HashMap<Address, usize, RandomState<xx::Hash64>> =
+            HashMap::with_capacity_and_hasher(100, RandomState::<xx::Hash64>::new());
+
+        let mut outputs_map: HashMap<Address, usize, RandomState<xx::Hash64>> =
+            HashMap::with_capacity_and_hasher(100, RandomState::<xx::Hash64>::new());
+
+        for src in inputs.iter() {
+            match clusters.ids.get(&src) {
+                Some(src_id) => {
+                    inputs_map.insert(src.clone(), *src_id as usize);
+                }
+                None => {
+                    continue;
+                }
+            }
+        }
+
+        for dst in outputs.iter() {
+            match clusters.ids.get(&dst) {
+                Some(dst_id) => {
+                    outputs_map.insert(dst.clone(), *dst_id as usize);
+                }
+                None => {
+                    continue;
+                }
+            }
+        }
+
+        for (_, src_id) in outputs_map.iter() {
+            for (_, dst_id) in outputs_map.iter() {
+                if src_id != dst_id {
+                    self.writer
+                        .write(&format!("{} {}\n", src_id, dst_id).as_bytes())
+                        .expect("Unable to write to output file!");
                 }
             }
         }
     }
 
+    /*
     fn done(&mut self, uniq: &HashMap<String, bool, RandomState<xx::Hash64>>) {
         self.writer
             .write(&format!("{} {} {}\n", self.max_src, self.max_dst, self.edges).as_bytes())
@@ -116,4 +119,5 @@ impl Graph {
                 .expect("Unable to write to output file!");
         }
     }
+    */
 }

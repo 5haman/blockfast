@@ -10,7 +10,7 @@ use parser::blocks::BlockMessage;
 use parser::ParseError;
 
 pub enum TransactionMessage {
-    OnTransaction(Vec<HashSet<Address>>),
+    OnTransaction((Vec<HashSet<Address>>, Vec<u64>)),
     OnComplete(bool),
     OnError(ParseError),
 }
@@ -42,6 +42,7 @@ impl<'a> Transactions<'a> {
                                 if slice.len() > 0 {
                                     let mut inputs = HashSet::<Address>::with_capacity(100);
                                     let mut outputs = HashSet::<Address>::with_capacity(100);
+                                    let mut values = Vec::<u64>::with_capacity(100);
 
                                     match Transaction::read(
                                         &mut slice,
@@ -49,6 +50,7 @@ impl<'a> Transactions<'a> {
                                         &mut output_items,
                                         &mut inputs,
                                         &mut outputs,
+                                        &mut values,
                                     ) {
                                         Ok(ok) => {
                                             if ok {
@@ -57,7 +59,9 @@ impl<'a> Transactions<'a> {
                                                 tx_msg.push(inputs);
                                                 tx_msg.push(outputs);
                                                 self.tx
-                                                    .send(TransactionMessage::OnTransaction(tx_msg))
+                                                    .send(TransactionMessage::OnTransaction((
+                                                        tx_msg, values,
+                                                    )))
                                                     .unwrap();
                                             }
                                         }
