@@ -4,7 +4,7 @@ use crypto::sha2::Sha256;
 use std::ops::{Deref, DerefMut};
 use std::{hash, mem};
 
-#[derive(PartialEq, Eq, Copy, Clone, Default, Ord, PartialOrd)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug, Default, Ord, PartialOrd)]
 pub struct Hash160([u8; 20]);
 
 impl hash::Hash for Hash160 {

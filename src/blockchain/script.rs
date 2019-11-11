@@ -1,5 +1,6 @@
 use bitcoin_bech32::constants::Network;
 use bitcoin_bech32::WitnessProgram;
+use std::fmt;
 
 use blockchain::bytecode::Bytecode;
 use blockchain::bytecode::Bytecode::*;
@@ -17,16 +18,35 @@ pub enum ScriptType<'a> {
     Invalid,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
 pub struct Script<'a> {
     slice: &'a [u8],
     timestamp: u32,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
 struct ScriptIter<'a> {
     slice: &'a [u8],
     timestamp: u32,
+}
+
+impl<'a> fmt::Debug for ScriptType<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let t = match self {
+            ScriptType::Pubkey(_) => ("Pubkey"),
+            ScriptType::PubkeyHash(_) => ("PubkeyHash"),
+            ScriptType::WitnessPubkeyHash(_) => ("WitnessPubkeyHash"),
+            ScriptType::Multisig(_, _) => ("Multisig"),
+            ScriptType::ScriptHash(_) => ("ScriptHash"),
+            ScriptType::WitnessScriptHash(_) => ("WitnessScriptHash"),
+            ScriptType::Unknown(_) => ("Unknown"),
+            ScriptType::Invalid => ("Invalid")
+        };
+
+        let mut d = f.debug_struct("ScriptType");
+        d.field("type", &t.to_string());
+        d.finish()
+    }
 }
 
 impl<'a> Script<'a> {

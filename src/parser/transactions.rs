@@ -1,6 +1,6 @@
 use crossbeam_channel::{Receiver, Sender};
 use fasthash::{xx, RandomState};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use vec_map::VecMap;
 
 use blockchain::address::Address;
@@ -10,7 +10,7 @@ use parser::blocks::BlockMessage;
 use parser::ParseError;
 
 pub enum TransactionMessage {
-    OnTransaction((Vec<HashSet<Address>>, Vec<u64>)),
+    OnTransaction(Transaction),
     OnComplete(bool),
     OnError(ParseError),
 }
@@ -27,7 +27,7 @@ impl<'a> Transactions<'a> {
 
     pub fn run(&self) {
         let mut done = false;
-        let mut output_items: HashMap<Hash, VecMap<Vec<Address>>, RandomState<xx::Hash64>> =
+        let mut output_items: HashMap<Hash, VecMap<Vec<(Address, u64)>>, RandomState<xx::Hash64>> =
             HashMap::with_capacity_and_hasher(1_000_000, RandomState::<xx::Hash64>::new());
 
         loop {
@@ -40,35 +40,22 @@ impl<'a> Transactions<'a> {
 
                             for _ in 0..transactions.count {
                                 if slice.len() > 0 {
-                                    let mut inputs = HashSet::<Address>::with_capacity(100);
-                                    let mut outputs = HashSet::<Address>::with_capacity(100);
-                                    let mut values = Vec::<u64>::with_capacity(100);
 
-                                    match Transaction::read(
+                                    let transaction: Transaction = match Transaction::read(
                                         &mut slice,
                                         block.header().timestamp(),
-                                        &mut output_items,
-                                        &mut inputs,
-                                        &mut outputs,
-                                        &mut values,
+                                        &mut output_items
                                     ) {
-                                        Ok(ok) => {
-                                            if ok {
-                                                let mut tx_msg = Vec::new();
-
-                                                tx_msg.push(inputs);
-                                                tx_msg.push(outputs);
-                                                self.tx
-                                                    .send(TransactionMessage::OnTransaction((
-                                                        tx_msg, values,
-                                                    )))
-                                                    .unwrap();
-                                            }
-                                        }
+                                        Ok(transaction) => (transaction),
                                         Err(_) => {
                                             warn!("Error processing transaction");
+                                            continue;
                                         }
-                                    }
+                                    };
+
+                                    self.tx
+                                        .send(TransactionMessage::OnTransaction(transaction))
+                                        .unwrap();
                                 }
                             }
                             assert_eq!(slice.len(), 0);

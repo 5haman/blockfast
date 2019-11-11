@@ -1,5 +1,7 @@
 use crossbeam_channel::Receiver;
+use fast_paths::InputGraph;
 use fasthash::{xx, RandomState};
+use std::collections::hash_map::Entry as HashEntry;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{LineWriter, Write};
@@ -12,6 +14,7 @@ use parser::Config;
 pub struct Graph {
     rx: Receiver<TransactionMessage>,
     writer: LineWriter<File>,
+    graph: HashMap<usize, HashMap<usize, usize, RandomState<xx::Hash64>>, RandomState<xx::Hash64>>,
 }
 
 impl Graph {
@@ -22,13 +25,12 @@ impl Graph {
         Self {
             writer: writer,
             rx: rx.clone(),
+            graph: HashMap::with_capacity_and_hasher(1_000_000, RandomState::<xx::Hash64>::new()),
         }
     }
 
     pub fn run(&mut self, clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>) {
         let mut done = false;
-        //let mut uniq: HashMap<String, bool, RandomState<xx::Hash64>> =
-        //    HashMap::with_capacity_and_hasher(1_000_000, RandomState::<xx::Hash64>::new());
 
         loop {
             if !self.rx.is_empty() {
@@ -49,7 +51,7 @@ impl Graph {
                     }
                 }
             } else if done {
-                //self.done(&uniq);
+                self.done();
                 return;
             }
         }
@@ -59,7 +61,6 @@ impl Graph {
         &mut self,
         tx_item: &mut Vec<HashSet<Address>>,
         clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>,
-        //uniq: &mut HashMap<String, bool, RandomState<xx::Hash64>>,
     ) {
         let outputs = tx_item.pop().unwrap();
         let inputs = tx_item.pop().unwrap();
@@ -99,25 +100,41 @@ impl Graph {
         for (_, src_id) in outputs_map.iter() {
             for (_, dst_id) in outputs_map.iter() {
                 if src_id != dst_id {
-                    self.writer
-                        .write(&format!("{} {}\n", src_id, dst_id).as_bytes())
-                        .expect("Unable to write to output file!");
+                    if let HashEntry::Occupied(mut set) = self.graph.entry(*src_id) {
+                        let set = set.get_mut();
+                        if let HashEntry::Occupied(mut entry) = set.entry(*dst_id) {
+                            let weight = entry.get_mut();
+                            *weight = *weight + 1;
+                        } else {
+                            set.insert(*dst_id, 1);
+                        }
+                    } else {
+                        let mut set: HashMap<usize, usize, RandomState<xx::Hash64>> =
+                            HashMap::with_hasher(RandomState::<xx::Hash64>::new());
+                        set.insert(*dst_id, 1);
+                        self.graph.insert(*src_id, set);
+                    }
                 }
             }
         }
     }
 
-    /*
-    fn done(&mut self, uniq: &HashMap<String, bool, RandomState<xx::Hash64>>) {
-        self.writer
-            .write(&format!("{} {} {}\n", self.max_src, self.max_dst, self.edges).as_bytes())
-            .expect("Unable to write to output file!");
+    fn done(&mut self) {
+        let mut graph = InputGraph::new();
 
-        for (edge, _) in uniq {
-            self.writer
-                .write(&format!("{}\n", edge).as_bytes())
-                .expect("Unable to write to output file!");
+        let mut count = 0;
+        for (src_id, set) in &self.graph {
+            for (dst_id, weight) in set {
+                graph.add_edge(*src_id, *dst_id, *weight);
+                count = count + 1;
+                self.writer
+                    .write(&format!("{} {}\n", src_id, dst_id).as_bytes())
+                    .expect("Unable to write to output file!");
+            }
         }
+
+        graph.freeze();
+        let fast_graph = fast_paths::prepare(&graph);
+        let _ = fast_paths::save_to_disk(&fast_graph, "graph.dat");
     }
-    */
 }

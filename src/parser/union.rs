@@ -103,6 +103,15 @@ where
         self.make_or_get_set(val);
     }
 
+    pub fn insert(&mut self, key: T) {
+        let val = self.get(&key);
+        self.ids.insert(key, val);
+    }
+
+    pub fn get(&mut self, key: &T) -> usize {
+        *self.ids.get(key).unwrap()
+    }
+
     pub fn union(&mut self, a: T, b: T) {
         let a = self.make_or_get_set(a);
         let b = self.make_or_get_set(b);

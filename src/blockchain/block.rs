@@ -26,7 +26,7 @@ impl<'a> Block<'a> {
             match block_magic {
                 // Incomplete blk file
                 0x00 => Err(ParseError::Eof),
-                // Bitcoin magic value
+                // Bitcoin magic amount
                 0xd9b4bef9 => {
                     let block_len = read_u32(slice)? as usize;
                     if block_len < 80 {

@@ -1,3 +1,5 @@
+#![feature(toowned_clone_into)]
+
 #[macro_use]
 extern crate arrayref;
 
@@ -5,6 +7,7 @@ extern crate arrayref;
 extern crate log;
 extern crate colog;
 
+extern crate chrono;
 extern crate advanced_collections;
 extern crate base58;
 extern crate bitcoin_bech32;
@@ -14,6 +17,7 @@ extern crate crossbeam_channel;
 extern crate crossbeam_utils;
 extern crate crypto;
 extern crate dirs;
+extern crate fast_paths;
 extern crate fasthash;
 extern crate memmap;
 extern crate rustc_serialize;
@@ -39,7 +43,7 @@ fn main() {
         UnionFind::with_capacity_and_hasher(1_000_000, RandomState::<xx::Hash64>::new());
 
     parser::run(&config, &mut clusters);
-    parser::run(&config, &mut clusters);
+    //parser::run(&config, &mut clusters);
 
     info!("Finished succesfully");
 }

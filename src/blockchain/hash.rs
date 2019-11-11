@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use std::{fmt, hash, mem};
 
 #[derive(PartialEq, Eq, Copy, Clone, Default, Ord, PartialOrd)]
-pub struct Hash([u8; 32]);
+pub struct Hash(pub [u8; 32]);
 
 impl hash::Hash for Hash {
     fn hash<H>(&self, hasher: &mut H)
@@ -16,12 +16,24 @@ impl hash::Hash for Hash {
     }
 }
 
-impl fmt::Display for Hash {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+impl fmt::Debug for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut hash = self.0;
         hash.reverse();
         let hash = hash.to_hex();
-        hash.fmt(formatter)
+
+        let mut d = f.debug_struct("Hash");
+        d.field("hash", &hash.to_string());
+        d.finish()
+    }
+}
+
+impl fmt::Display for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let mut hash = self.0;
+        hash.reverse();
+        let hash = hash.to_hex();
+        hash.fmt(f)
     }
 }
 
