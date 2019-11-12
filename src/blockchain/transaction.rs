@@ -4,11 +4,11 @@ use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use fasthash::{xx, RandomState};
 use std::collections::hash_map::Entry as HashEntry;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use vec_map::VecMap;
 
-use blockchain::address::Address;
+use blockchain::address::{Address, Taint};
 use blockchain::buffer::*;
 use blockchain::hash::*;
 use blockchain::hash160::Hash160;
@@ -62,6 +62,7 @@ impl Transaction {
         slice: &mut &[u8],
         timestamp: u32,
         output_items: &mut HashMap<Hash, VecMap<Vec<(Address, u64)>>, RandomState<xx::Hash64>>,
+        start_txs: &mut HashMap<Hash, VecDeque<Taint>>,
     ) -> ParseResult<Transaction> {
         let mut tx_hash = [0u8; 32];
         let mut sha256_hasher1 = Sha256::new();
@@ -90,6 +91,7 @@ impl Transaction {
         }
 
         // Read the inputs
+        let mut cur_taints: VecDeque<Taint> = Default::default();
         for _ in 0..inputs_count {
             let txin = TransactionInput::read(slice, timestamp)?;
             let mut output_item = None;
@@ -105,9 +107,19 @@ impl Transaction {
             }
 
             match output_item {
-                Some(address) => {
-                    for (addr, amount) in address {
-                        inputs.insert(addr, amount);
+                Some(output) => {
+                    for (mut address, amount) in output {
+                        let a = address.clone();
+                        match address.taints {
+                            Some(mut taint) => {
+                                address.taints = is_taint(&mut taint, amount);
+                                for t in address.taints.unwrap() {
+                                    cur_taints.push_back(t);
+                                }
+                            }
+                            None => {}
+                        }
+                        inputs.insert(a.to_owned(), amount);
                     }
                 }
                 None => {}
@@ -116,69 +128,10 @@ impl Transaction {
 
         // Read the outputs
         let outputs_count = read_var_int(slice)?;
-
-        let mut cur_outputs = VecMap::with_capacity(outputs_count as usize);
-        for n in 0..outputs_count {
+        let mut raw_outputs: Vec<TransactionOutput> = Vec::new();
+        for _ in 0..outputs_count {
             let txout = TransactionOutput::read(slice, timestamp)?;
-            let output_item = match txout.script.to_scripttype() {
-                ScriptType::PubkeyHash(pkh) => Some(vec![Address::from_hash160(
-                    Hash160::from_slice(pkh),
-                    0x00,
-                    None,
-                    0,
-                    timestamp,
-                )]),
-                ScriptType::ScriptHash(pkh) => Some(vec![Address::from_hash160(
-                    Hash160::from_slice(pkh),
-                    0x05,
-                    None,
-                    0,
-                    timestamp,
-                )]),
-                ScriptType::Pubkey(pk) => Some(vec![Address::from_hash160(
-                    &Hash160::from_data(pk),
-                    0x00,
-                    None,
-                    0,
-                    timestamp,
-                )]),
-                ScriptType::Multisig(_, pks) => Some(
-                    pks.iter()
-                        .map(|pk| Address::from_pubkey(pk, 0x05, None, 0, timestamp))
-                        .collect(),
-                ),
-                ScriptType::WitnessScriptHash(w) => Some(vec![Address {
-                    addr: WitnessProgram::from_scriptpubkey(w, Network::Bitcoin)
-                        .unwrap()
-                        .to_address()
-                        .as_bytes()
-                        .to_vec(),
-                    taints: None,
-                    balance: 0,
-                    firstseen: timestamp,
-                }]),
-                ScriptType::WitnessPubkeyHash(w) => Some(vec![Address {
-                    addr: WitnessProgram::from_scriptpubkey(w, Network::Bitcoin)
-                        .unwrap()
-                        .to_address()
-                        .as_bytes()
-                        .to_vec(),
-                    taints: None,
-                    balance: 0,
-                    firstseen: timestamp,
-                }]),
-                _ => None,
-            };
-
-            if let Some(output_item) = output_item {
-                let mut cur_output = Vec::new();
-
-                for n in 0..output_item.len() {
-                    cur_output.insert(n as usize, (output_item[n].clone(), txout.amount));
-                    outputs.insert(output_item[n].clone(), txout.amount);
-                }
-                cur_outputs.insert(n as usize, cur_output);
-            };
+            raw_outputs.push(txout);
         }
 
         // Hash the transaction data before the witnesses
@@ -201,22 +154,139 @@ impl Transaction {
         sha256_hasher1.result(&mut tx_hash);
         sha256_hasher2.input(&tx_hash);
         sha256_hasher2.result(&mut tx_hash);
+        let txid = *Hash::from_slice(&tx_hash);
+
+        let mut cur_outputs = VecMap::with_capacity(outputs_count as usize);
+        let mut remove = false;
+        for n in 0..raw_outputs.len() {
+            let txout = raw_outputs[n];
+            let output_item = match txout.script.to_scripttype() {
+                ScriptType::PubkeyHash(pkh) => Some(vec![Address::from_hash160(
+                    Hash160::from_slice(pkh),
+                    0x00,
+                    None,
+                )]),
+                ScriptType::ScriptHash(pkh) => Some(vec![Address::from_hash160(
+                    Hash160::from_slice(pkh),
+                    0x05,
+                    None,
+                )]),
+                ScriptType::Pubkey(pk) => Some(vec![Address::from_hash160(
+                    &Hash160::from_data(pk),
+                    0x00,
+                    None,
+                )]),
+                ScriptType::Multisig(_, pks) => Some(
+                    pks.iter()
+                        .map(|pk| Address::from_pubkey(pk, 0x05, None))
+                        .collect(),
+                ),
+                ScriptType::WitnessScriptHash(w) => Some(vec![Address {
+                    addr: WitnessProgram::from_scriptpubkey(w, Network::Bitcoin)
+                        .unwrap()
+                        .to_address()
+                        .as_bytes()
+                        .to_vec(),
+                    taints: None,
+                }]),
+                ScriptType::WitnessPubkeyHash(w) => Some(vec![Address {
+                    addr: WitnessProgram::from_scriptpubkey(w, Network::Bitcoin)
+                        .unwrap()
+                        .to_address()
+                        .as_bytes()
+                        .to_vec(),
+                    taints: None,
+                }]),
+                _ => None,
+            };
+
+            if let Some(output_item) = output_item {
+                let mut cur_output = Vec::new();
+
+                for m in 0..output_item.len() {
+                    let mut address = output_item[m].to_owned();
+                    if start_txs.len() > 0 && start_txs.contains_key(&txid) {
+                        remove = true;
+                        address.taints = is_taint(start_txs.get_mut(&txid).unwrap(), txout.amount);
+                    }
+                    if cur_taints.len() > 0 {
+                        let taints = is_taint(&mut cur_taints, txout.amount);
+                        for t in taints.clone().unwrap() {
+                            if t.label != 0 {
+                                address.taints = taints;
+                                break;
+                            }
+                        }
+                    }
+                    cur_output.insert(m as usize, (address.to_owned(), txout.amount));
+                    outputs.insert(address.to_owned(), txout.amount);
+                }
+                cur_outputs.insert(n as usize, cur_output);
+            };
+        }
+        if remove {
+            start_txs.remove(&txid);
+        }
 
         if cur_outputs.len() > 0 {
             let len = cur_outputs.len();
             cur_outputs.reserve_len_exact(len);
-            output_items.insert(*Hash::from_slice(&tx_hash), cur_outputs);
+            output_items.insert(txid, cur_outputs);
         }
 
-        Ok(Transaction {
+        let tx = Transaction {
             version,
-            txid: *Hash::from_slice(&tx_hash),
+            txid: txid,
             inputs_count,
             outputs_count,
             lock_time,
             inputs,
             outputs,
-        })
+        };
+
+        Ok(tx)
+    }
+}
+
+fn is_taint(taints: &mut VecDeque<Taint>, amount: u64) -> Option<VecDeque<Taint>> {
+    let mut remaining = amount;
+    let mut new_taints = VecDeque::new();
+
+    while remaining > 0 {
+        if taints.is_empty() {
+            new_taints.push_back(Taint {
+                label: 0,
+                amount: remaining,
+            });
+            remaining = 0;
+        } else {
+            let mut taint = taints.pop_front().unwrap();
+            if remaining >= taint.amount {
+                remaining -= taint.amount;
+                new_taints.push_back(taint);
+            } else {
+                taint.amount -= remaining;
+                new_taints.push_back(Taint {
+                    label: taint.label,
+                    amount: remaining,
+                });
+                taints.push_front(taint);
+                remaining = 0;
+            }
+        }
+    }
+
+    if remaining > 0 {
+        new_taints.push_back(Taint {
+            label: 0,
+            amount: remaining,
+        });
+    }
+
+    if new_taints.len() == 0 {
+        return None;
+    } else {
+        return Some(new_taints);
     }
 }
 

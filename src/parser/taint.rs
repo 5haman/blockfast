@@ -42,7 +42,7 @@ use std::result::Result;
 use unionfind::{UnionFinder, UnionFinderImpl};
 
 extern crate chrono;
-use self::chrono::*;
+use chrono::{NaiveDate, NaiveDateTime};
 
 use std::collections::VecDeque;
 

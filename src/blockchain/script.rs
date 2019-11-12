@@ -40,7 +40,7 @@ impl<'a> fmt::Debug for ScriptType<'a> {
             ScriptType::ScriptHash(_) => ("ScriptHash"),
             ScriptType::WitnessScriptHash(_) => ("WitnessScriptHash"),
             ScriptType::Unknown(_) => ("Unknown"),
-            ScriptType::Invalid => ("Invalid")
+            ScriptType::Invalid => ("Invalid"),
         };
 
         let mut d = f.debug_struct("ScriptType");
