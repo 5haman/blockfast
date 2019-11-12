@@ -91,28 +91,29 @@ impl Clusters {
                     }
                 }
 
-                if is_cluster {
-                    clusters.union(last_address.to_owned(), output1.clone());
+                if is_cluster || transaction.outputs.len() == 1 {
+                    if !clusters.contains(&last_address) {
+                        clusters.make_set(last_address.to_owned());
+                    } else {
+                        clusters.insert(last_address.to_owned());
+                    }
+                    if is_cluster {
+                        clusters.union(last_address.to_owned(), output1.clone());
+                    }
                 }
-            }
-
-            if !clusters.contains(&last_address) {
-                clusters.make_set(last_address.to_owned());
-            } else {
-                clusters.insert(last_address.to_owned());
             }
 
             for (address, _) in tx_inputs {
-                if !clusters.contains(&address) {
-                    clusters.make_set(address.to_owned());
-                } else {
-                    clusters.insert(address.to_owned());
-                }
-
                 if transaction.outputs.len() == 1 {
+                    if !clusters.contains(&address) {
+                        clusters.make_set(address.to_owned());
+                    } else {
+                        clusters.insert(address.to_owned());
+                    }
+
                     clusters.union(last_address.to_owned(), address.to_owned());
+                    last_address = address;
                 }
-                last_address = address;
             }
         }
 
