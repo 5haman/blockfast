@@ -1,4 +1,3 @@
-use crossbeam_channel::Receiver;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use fasthash::{xx, RandomState};
@@ -8,58 +7,28 @@ use std::io::{LineWriter, Write};
 
 use blockchain::address::Address;
 use blockchain::transaction::Transaction;
-use parser::transactions::TransactionMessage;
 use parser::union::UnionFind;
 use parser::Config;
 
 pub struct Clusters {
-    rx: Receiver<TransactionMessage>,
     writer: LineWriter<File>,
+    clusters: UnionFind<Address, RandomState<xx::Hash64>>,
 }
 
 impl Clusters {
-    pub fn new(rx: Receiver<TransactionMessage>, config: &Config) -> Self {
+    pub fn new(config: &Config) -> Self {
         let output = &config.output;
         let writer = LineWriter::new(File::create(output).expect("Unable to create output file!"));
+        let clusters: UnionFind<Address, RandomState<xx::Hash64>> =
+            UnionFind::with_hasher(RandomState::<xx::Hash64>::new());
 
         Self {
             writer: writer,
-            rx: rx.clone(),
+            clusters: clusters,
         }
     }
 
-    pub fn run(&mut self, clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>) {
-        let mut done = false;
-        loop {
-            if !self.rx.is_empty() {
-                match self.rx.recv() {
-                    Ok(msg) => match msg {
-                        TransactionMessage::OnTransaction(mut transaction) => {
-                            self.on_transaction(&mut transaction, clusters);
-                        }
-                        TransactionMessage::OnComplete(_) => {
-                            done = true;
-                        }
-                        TransactionMessage::OnError(_) => {
-                            warn!("Error processing transaction");
-                        }
-                    },
-                    Err(_) => {
-                        warn!("Error processing transaction");
-                    }
-                }
-            } else if done {
-                self.done(clusters);
-                return;
-            }
-        }
-    }
-
-    fn on_transaction(
-        &mut self,
-        transaction: &mut Transaction,
-        clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>,
-    ) {
+    pub fn on_transaction(&mut self, transaction: &mut Transaction) {
         // Inputs
         if transaction.inputs.len() > 0 {
             let mut tx_inputs = transaction.inputs.iter();
@@ -71,7 +40,7 @@ impl Clusters {
                 if transaction.outputs.len() == 2 && transaction.inputs.len() != 2 {
                     let (output2, _) = &transaction.outputs.iter().next().unwrap();
 
-                    if !clusters.contains(&output1) && clusters.contains(&output2) {
+                    if !self.clusters.contains(&output1) && self.clusters.contains(&output2) {
                         let amount = *amount / 100_000_000;
                         let vals = format!("{}", amount);
                         let vec: Vec<&str> = vals.split(".").collect();
@@ -79,7 +48,7 @@ impl Clusters {
 
                         if len > 4 {
                             is_cluster = true;
-                            clusters.make_set(output1.to_owned());
+                            self.clusters.make_set(output1.to_owned());
                         }
                     }
 
@@ -92,69 +61,75 @@ impl Clusters {
                 }
 
                 if is_cluster || transaction.outputs.len() == 1 {
-                    if !clusters.contains(&last_address) {
-                        clusters.make_set(last_address.to_owned());
-                    } else {
-                        clusters.insert(last_address.to_owned());
+                    if !self.clusters.contains(&last_address) {
+                        self.clusters.make_set(last_address.to_owned());
                     }
                     if is_cluster {
-                        clusters.union(last_address.to_owned(), output1.clone());
+                        self.clusters
+                            .union(last_address.to_owned(), output1.clone());
                     }
                 }
             }
 
             for (address, _) in tx_inputs {
                 if transaction.outputs.len() == 1 {
-                    if !clusters.contains(&address) {
-                        clusters.make_set(address.to_owned());
-                    } else {
-                        clusters.insert(address.to_owned());
+                    if !self.clusters.contains(&address) {
+                        self.clusters.make_set(address.to_owned());
                     }
 
-                    clusters.union(last_address.to_owned(), address.to_owned());
+                    self.clusters
+                        .union(last_address.to_owned(), address.to_owned());
                     last_address = address;
                 }
             }
         }
 
         // Outputs
-        if transaction.outputs.len() > 0 {
+        if transaction.outputs.len() == 1 {
             for (address, _) in transaction.outputs.iter() {
-                if !clusters.contains(&address) {
-                    clusters.make_set(address.to_owned());
+                if !self.clusters.contains(&address) {
+                    self.clusters.make_set(address.to_owned());
                 }
             }
         }
     }
 
-    fn done(&mut self, clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>) {
+    pub fn done(&mut self) {
         info!("Done");
-        info!("Found {} addresses", clusters.len());
+        info!("Found {} addresses", self.clusters.len());
 
         let prefix = "kyblsoft.cz".to_string();
         let mut cache: Vec<(Address, [u8; 32])> = Default::default();
         let mut pos = 0;
         let mut count = 0;
 
-        for set in clusters.into_iter() {
-            if count % 1000000 == 0 && count != 0 {
-                info!("Processed {} addresses, {} clusters", count, pos);
-            }
-
+        for set in self.clusters.into_iter() {
             for address in set.into_iter() {
-                let mut hasher = Md5::new();
-                let mut hash = [0u8; 32];
-                hasher.input(format!("{}:{}", prefix, address).as_bytes());
-                hasher.result(&mut hash);
-                cache.push((address.clone(), hash));
-                count = count + 1;
+                match &address.taints {
+                    Some(_) => {
+                        let mut hasher = Md5::new();
+                        let mut hash = [0u8; 32];
+                        hasher.input(format!("{}:{}", prefix, address).as_bytes());
+                        hasher.result(&mut hash);
+                        cache.push((address.clone(), hash));
+                        count = count + 1;
+                    }
+                    None => {}
+                }
+                if count % 1000000 == 0 && count != 0 {
+                    info!("Processed {} addresses, {} self.clusters", count, pos);
+                }
             }
             cache.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
-            let (address, hash) = cache.pop().unwrap();
-            let digest = array_ref!(hash, 0, 8);
-            match &address.taints {
-                Some(_) => {
+            if cache.len() > 0 {
+                let (address, hash) = cache.pop().unwrap();
+                let digest = array_ref!(hash, 0, 8);
+                self.writer
+                    .write(&format!("{},{},{}\n", pos, digest.to_hex(), address.clone()).as_bytes())
+                    .expect("Unable to write to output file!");
+
+                for (address, _) in &cache {
                     self.writer
                         .write(
                             &format!("{},{},{}\n", pos, digest.to_hex(), address.clone())
@@ -162,24 +137,9 @@ impl Clusters {
                         )
                         .expect("Unable to write to output file!");
                 }
-                None => {}
+                pos = pos + 1;
+                cache.clear();
             }
-
-            for (address, _) in &cache {
-                match &address.taints {
-                    Some(_) => {
-                        self.writer
-                            .write(
-                                &format!("{},{},{}\n", pos, digest.to_hex(), address.clone())
-                                    .as_bytes(),
-                            )
-                            .expect("Unable to write to output file!");
-                    }
-                    None => {}
-                }
-            }
-            pos = pos + 1;
-            cache.clear();
         }
         info!("Done");
         info!("Found {} clusters", pos);

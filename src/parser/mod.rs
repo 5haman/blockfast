@@ -1,20 +1,9 @@
 use clap::{App, Arg};
-use crossbeam_channel::bounded;
-use crossbeam_utils::thread;
-use fasthash::{xx, RandomState};
 use std::result;
 
-use blockchain::address::Address;
-use parser::blockchain::Blockchain;
-use parser::blocks::Blocks;
-use parser::clusters::Clusters;
-use parser::transactions::Transactions;
-use parser::union::UnionFind;
-
 pub mod blockchain;
-pub mod blocks;
 pub mod clusters;
-pub mod transactions;
+pub mod parser;
 pub mod union;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -108,29 +97,4 @@ impl Config {
             queue_size: QUEUE_SIZE,
         }
     }
-}
-
-pub fn run(config: &Config, clusters: &mut UnionFind<Address, RandomState<xx::Hash64>>) {
-    let blockchain: Blockchain = Blockchain::new(&config.blocks_dir, config.max_block);
-    let (block_out, block_in) = bounded(1);
-    let (tx_out, tx_in) = bounded(config.queue_size);
-
-    thread::scope(|scope| {
-        let _ = scope.spawn(|_| {
-            let mut b = Blocks::new(block_out);
-            b.run(&blockchain);
-        });
-
-        let _ = scope.spawn(|_| {
-            let mut t = Transactions::new(block_in, tx_out, config);
-            t.run();
-        });
-
-        info!("Processing clusters...");
-        let _ = scope.spawn(|_| {
-            let mut c = Clusters::new(tx_in, config);
-            c.run(clusters);
-        });
-    })
-    .unwrap();
 }

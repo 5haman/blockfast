@@ -248,48 +248,6 @@ impl Transaction {
     }
 }
 
-fn is_taint(taints: &mut VecDeque<Taint>, amount: u64) -> Option<VecDeque<Taint>> {
-    let mut remaining = amount;
-    let mut new_taints = VecDeque::new();
-
-    while remaining > 0 {
-        if taints.is_empty() {
-            new_taints.push_back(Taint {
-                label: 0,
-                amount: remaining,
-            });
-            remaining = 0;
-        } else {
-            let mut taint = taints.pop_front().unwrap();
-            if remaining >= taint.amount {
-                remaining -= taint.amount;
-                new_taints.push_back(taint);
-            } else {
-                taint.amount -= remaining;
-                new_taints.push_back(Taint {
-                    label: taint.label,
-                    amount: remaining,
-                });
-                taints.push_front(taint);
-                remaining = 0;
-            }
-        }
-    }
-
-    if remaining > 0 {
-        new_taints.push_back(Taint {
-            label: 0,
-            amount: remaining,
-        });
-    }
-
-    if new_taints.len() == 0 {
-        return None;
-    } else {
-        return Some(new_taints);
-    }
-}
-
 impl<'a> TransactionInput<'a> {
     pub fn read(slice: &mut &'a [u8], timestamp: u32) -> ParseResult<TransactionInput<'a>> {
         // Save the initial position
@@ -337,5 +295,39 @@ impl<'a> TransactionOutput<'a> {
             amount,
             script: Script::new(script, timestamp),
         })
+    }
+}
+
+fn is_taint(taints: &mut VecDeque<Taint>, amount: u64) -> Option<VecDeque<Taint>> {
+    let mut remaining = amount;
+    let mut new_taints = VecDeque::new();
+
+    while remaining > 0 && !taints.is_empty() {
+        let mut taint = taints.pop_front().unwrap();
+        if remaining >= taint.amount {
+            remaining -= taint.amount;
+            new_taints.push_back(taint);
+        } else {
+            taint.amount -= remaining;
+            new_taints.push_back(Taint {
+                label: taint.label,
+                amount: remaining,
+            });
+            taints.push_front(taint);
+            remaining = 0;
+        }
+    }
+
+    if remaining > 0 {
+        new_taints.push_back(Taint {
+            label: 0,
+            amount: remaining,
+        });
+    }
+
+    if new_taints.len() == 0 {
+        return None;
+    } else {
+        return Some(new_taints);
     }
 }
